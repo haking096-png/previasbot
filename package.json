@@ -1,0 +1,28 @@
+{
+  "name": "telegram-preview-bot",
+  "version": "1.0.0",
+  "description": "Sistema automatizado de prévias para Telegram com análise de imagens via Grok AI",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "dashboard"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:dashboard\" \"npm run dev:worker\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:dashboard": "cd dashboard && npm run dev",
+    "dev:worker": "cd backend && npm run worker",
+    "build": "npm run build:backend && npm run build:dashboard",
+    "build:backend": "cd backend && npm run build",
+    "build:dashboard": "cd dashboard && npm run build",
+    "start": "npm run start:backend",
+    "start:backend": "cd backend && npm start",
+    "start:worker": "cd backend && npm run worker:prod",
+    "prisma:generate": "cd backend && npx prisma generate",
+    "prisma:migrate": "cd backend && npx prisma migrate dev",
+    "prisma:studio": "cd backend && npx prisma studio"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Settings {
+  id              String   @id @default(cuid())
+  key             String   @unique
+  value           String
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Schedule {
+  id        String   @id @default(cuid())
+  time      String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  posts     Post[]
+}
+
+model MediaItem {
+  id            String         @id @default(cuid())
+  filename      String         @unique
+  originalName  String
+  filePath      String
+  order         Int
+  status        MediaStatus    @default(PENDING)
+  processed     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  analysis      MediaAnalysis?
+  preview       Preview?
+  posts         Post[]
+}
+
+model MediaAnalysis {
+  id          String    @id @default(cuid())
+  mediaItemId String    @unique
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  scenario    String?
+  pose        String?
+  clothing    String?
+  emotion     String?
+  visualStyle String?
+  mainFocus   String?
+  colors      String?
+  feeling     String?
+  description String?
+  headline    String?
+  copy        String?
+  hashtags    String?
+  category    String?
+  rawData     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Preview {
+  id          String       @id @default(cuid())
+  mediaItemId String       @unique
+  mediaItem   MediaItem    @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  headline    String
+  body        String
+  preCta      String
+  cta         String
+  buttonText  String
+  buttonUrl   String
+  status      PreviewStatus @default(PENDING)
+  approved    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  posts       Post[]
+}
+
+model Post {
+  id           String     @id @default(cuid())
+  mediaItemId  String
+  mediaItem    MediaItem  @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  previewId    String
+  preview      Preview    @relation(fields: [previewId], references: [id], onDelete: Cascade)
+  channelId    String?
+  channel      Channel?   @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  scheduleId   String?
+  schedule     Schedule?  @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  scheduledFor DateTime?
+  publishedAt  DateTime?
+  status       PostStatus @default(SCHEDULED)
+  telegramMessageId String?
+  error        String?
+  retryCount   Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Channel {
+  id                   String   @id @default(cuid())
+  name                 String
+  botToken             String
+  chatId               String
+  ctaLink              String
+  modelName            String?
+  modelProfession      String?
+  modelCharacteristics String?
+  modelPersonality     String?
+  copyExamples         String?
+  enabled              Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  posts                Post[]
+}
+
+model JobLog {
+  id        String   @id @default(cuid())
+  jobName   String
+  jobId     String?
+  status    String
+  data      String?
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+enum MediaStatus {
+  PENDING
+  ANALYZING
+  ANALYZED
+  GENERATING_PREVIEW
+  READY
+  ERROR
+}
+
+enum PreviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PostStatus {
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
