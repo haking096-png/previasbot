@@ -1,12 +1,10 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { GeistSans } from 'geist/font/sans'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
 
-const inter = Inter({ subsets: ['latin'] })
-
 export const metadata: Metadata = {
-  title: 'Telegram Preview Bot - Dashboard',
+  title: 'Auto Prévias Hot 2.0',
   description: 'Sistema automatizado de prévias para Telegram',
 }
 
@@ -17,9 +15,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className}>
+      <body className={GeistSans.className}>
         {children}
-        <Toaster position="top-right" />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: '#141d35',
+              color: '#f0f4f8',
+              border: '1px solid rgba(56, 97, 150, 0.15)',
+              fontSize: '13px',
+            },
+          }}
+        />
       </body>
     </html>
   )

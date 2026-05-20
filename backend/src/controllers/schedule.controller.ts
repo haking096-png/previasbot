@@ -5,7 +5,18 @@ import logger from '../utils/logger';
 export class ScheduleController {
   async getAll(req: Request, res: Response) {
     try {
+      const { channelId } = req.query;
+
+      const where: any = {};
+      if (channelId) {
+        where.channelId = channelId as string;
+      }
+
       const schedules = await prisma.schedule.findMany({
+        where,
+        include: {
+          channel: true,
+        },
         orderBy: { time: 'asc' },
       });
       res.json(schedules);
@@ -17,17 +28,24 @@ export class ScheduleController {
 
   async create(req: Request, res: Response) {
     try {
-      const { time, enabled } = req.body;
+      const { time, enabled, channelId } = req.body;
 
       if (!time) {
         return res.status(400).json({ error: 'Time is required' });
       }
 
       const schedule = await prisma.schedule.create({
-        data: { time, enabled: enabled ?? true },
+        data: {
+          time,
+          enabled: enabled ?? true,
+          channelId: channelId || null,
+        },
+        include: {
+          channel: true,
+        },
       });
 
-      logger.info('Schedule created', { id: schedule.id, time });
+      logger.info('Schedule created', { id: schedule.id, time, channelId });
       res.json(schedule);
     } catch (error: any) {
       logger.error('Create schedule error', { error: error.message });
@@ -38,11 +56,19 @@ export class ScheduleController {
   async update(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { time, enabled } = req.body;
+      const { time, enabled, channelId } = req.body;
+
+      const data: any = {};
+      if (time !== undefined) data.time = time;
+      if (enabled !== undefined) data.enabled = enabled;
+      if (channelId !== undefined) data.channelId = channelId || null;
 
       const schedule = await prisma.schedule.update({
         where: { id },
-        data: { time, enabled },
+        data,
+        include: {
+          channel: true,
+        },
       });
 
       logger.info('Schedule updated', { id });

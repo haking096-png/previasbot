@@ -114,6 +114,98 @@ Seja descritiva, específica e criativa. Retorne APENAS o JSON, sem texto adicio
     return result;
   }
 
+  async generateCtaPresente(ctaPrompt: string, ctaLink: string): Promise<{ headline: string; body: string; cta: string }> {
+    this.validateApiKey();
+
+    const prompt = `${ctaPrompt}
+
+---
+
+TAREFA: Baseado nas instruções e exemplos acima, crie UM NOVO CTA presente ORIGINAL e DIFERENTE dos exemplos, mas seguindo EXATAMENTE o mesmo tom, estilo, vocabulário e nível de ousadia.
+
+O link do CTA é: ${ctaLink}
+
+Retorne APENAS um JSON válido com esta estrutura:
+{
+  "headline": "HEADLINE NO ESTILO DOS EXEMPLOS",
+  "body": "corpo no estilo dos exemplos",
+  "cta": "TEXTO DO CTA NO ESTILO DOS EXEMPLOS"
+}
+
+Retorne APENAS o JSON, sem markdown, sem texto extra.`;
+
+    const messages = [{ role: 'user' as const, content: prompt }];
+    const responseContent = await this.callGrokAPI(messages, { ...DEFAULT_OPTIONS, temperature: 0.9, maxTokens: 500 });
+
+    try {
+      let clean = responseContent.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+      clean = clean.replace(/[\x00-\x1F\x7F]/g, (ch) => ch === '\n' || ch === '\r' || ch === '\t' ? ch : '');
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON found');
+      const sanitized = jsonMatch[0].replace(/[\n\r\t]/g, ' ');
+      const parsed = JSON.parse(sanitized);
+      return {
+        headline: parsed.headline || 'PRESENTE PRA VOCÊ 🎁',
+        body: parsed.body || 'Vim te dar um presentinho...',
+        cta: parsed.cta || '🎁 RESGATAR PRESENTE',
+      };
+    } catch (error: any) {
+      logger.warn('Failed to parse CTA response, using fallback', { error: error.message });
+      return {
+        headline: 'PRESENTE PRA VOCÊ 🎁',
+        body: 'Vim te dar um presentinho especial...',
+        cta: '🎁 RESGATAR PRESENTE',
+      };
+    }
+  }
+
+  async generateEnquete(enquetePrompt: string): Promise<{ question: string; options: string[] }> {
+    this.validateApiKey();
+
+    const prompt = `${enquetePrompt}
+
+---
+
+TAREFA: Baseado nas instruções e exemplos acima, crie UMA NOVA enquete ORIGINAL e DIFERENTE dos exemplos, mas seguindo EXATAMENTE o mesmo tom, estilo, vocabulário e nível de interação.
+
+Retorne APENAS um JSON válido com esta estrutura:
+{
+  "question": "PERGUNTA NO ESTILO DOS EXEMPLOS",
+  "options": ["opção 1", "opção 2", "opção 3"]
+}
+
+Retorne APENAS o JSON, sem markdown, sem texto extra.`;
+
+    const messages = [{ role: 'user' as const, content: prompt }];
+    const responseContent = await this.callGrokAPI(messages, { ...DEFAULT_OPTIONS, temperature: 0.9, maxTokens: 300 });
+
+    try {
+      let clean = responseContent.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+      // Remove control characters that break JSON parsing
+      clean = clean.replace(/[\x00-\x1F\x7F]/g, (ch) => ch === '\n' || ch === '\r' || ch === '\t' ? ch : '');
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON found');
+      // Sanitize the JSON string: replace unescaped newlines inside string values
+      const sanitized = jsonMatch[0].replace(/[\n\r\t]/g, ' ');
+      const parsed = JSON.parse(sanitized);
+
+      if (!parsed.question || !Array.isArray(parsed.options) || parsed.options.length < 2) {
+        throw new Error('Invalid enquete format');
+      }
+
+      return {
+        question: parsed.question,
+        options: parsed.options.slice(0, 4), // Max 4 options for Telegram
+      };
+    } catch (error: any) {
+      logger.warn('Failed to parse enquete response, using fallback', { error: error.message });
+      return {
+        question: 'O que vocês preferem? 🔥',
+        options: ['Opção 1 😈', 'Opção 2 🤤', 'Opção 3 🔥'],
+      };
+    }
+  }
+
   // ━━━━━━━━━━━━━━━━━━━ Private Methods ━━━━━━━━━━━━━━━━━━━
 
   private validateApiKey(): void {

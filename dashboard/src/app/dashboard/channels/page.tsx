@@ -10,11 +10,10 @@ interface ChannelForm {
   botToken: string;
   chatId: string;
   ctaLink: string;
-  modelName: string;
-  modelProfession: string;
-  modelCharacteristics: string;
-  modelPersonality: string;
-  copyExamples: string[];
+  mediaStorageChatId: string;
+  ctaPrompt: string;
+  enquetePrompt: string;
+  previewPrompt: string;
 }
 
 const emptyForm: ChannelForm = {
@@ -22,11 +21,10 @@ const emptyForm: ChannelForm = {
   botToken: '',
   chatId: '',
   ctaLink: '',
-  modelName: '',
-  modelProfession: '',
-  modelCharacteristics: '',
-  modelPersonality: '',
-  copyExamples: ['', '', '', '', ''],
+  mediaStorageChatId: '',
+  ctaPrompt: '',
+  enquetePrompt: '',
+  previewPrompt: '',
 };
 
 export default function ChannelsPage() {
@@ -45,7 +43,10 @@ export default function ChannelsPage() {
       const response = await channelApi.getAll();
       setChannels(response.data);
     } catch (error: any) {
-      toast.error('Erro ao carregar canais');
+      if (error.response?.status !== 401) {
+        console.warn('Failed to load channels, retrying...');
+        setTimeout(loadChannels, 3000);
+      }
     } finally {
       setLoading(false);
     }
@@ -53,21 +54,16 @@ export default function ChannelsPage() {
 
   const handleSubmit = async () => {
     if (!form.name || !form.botToken || !form.chatId || !form.ctaLink) {
-      toast.error('Preencha os campos obrigatórios');
+      toast.error('Preencha os campos obrigatorios');
       return;
     }
 
     try {
-      const data = {
-        ...form,
-        copyExamples: form.copyExamples.filter(e => e.trim()),
-      };
-
       if (editingId) {
-        await channelApi.update(editingId, data);
+        await channelApi.update(editingId, form);
         toast.success('Canal atualizado!');
       } else {
-        await channelApi.create(data);
+        await channelApi.create(form);
         toast.success('Canal criado!');
       }
 
@@ -81,26 +77,15 @@ export default function ChannelsPage() {
   };
 
   const handleEdit = (channel: Channel) => {
-    let examples: string[] = ['', '', '', '', ''];
-    if (channel.copyExamples) {
-      try {
-        const parsed = JSON.parse(channel.copyExamples);
-        if (Array.isArray(parsed)) {
-          examples = [...parsed, ...Array(5 - parsed.length).fill('')].slice(0, 5);
-        }
-      } catch { /* ignore */ }
-    }
-
     setForm({
       name: channel.name,
       botToken: channel.botToken,
       chatId: channel.chatId,
       ctaLink: channel.ctaLink,
-      modelName: channel.modelName || '',
-      modelProfession: channel.modelProfession || '',
-      modelCharacteristics: channel.modelCharacteristics || '',
-      modelPersonality: channel.modelPersonality || '',
-      copyExamples: examples,
+      mediaStorageChatId: channel.mediaStorageChatId || '',
+      ctaPrompt: channel.ctaPrompt || '',
+      enquetePrompt: channel.enquetePrompt || '',
+      previewPrompt: channel.previewPrompt || '',
     });
     setEditingId(channel.id);
     setShowForm(true);
@@ -111,7 +96,7 @@ export default function ChannelsPage() {
 
     try {
       await channelApi.delete(id);
-      toast.success('Canal excluído!');
+      toast.success('Canal excluido!');
       loadChannels();
     } catch (error: any) {
       toast.error('Erro ao excluir canal');
@@ -137,28 +122,28 @@ export default function ChannelsPage() {
         toast.error(`Falha: ${response.data.error}`);
       }
     } catch (error: any) {
-      toast.error('Erro ao testar conexão');
+      toast.error('Erro ao testar conexao');
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-dark-bg">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-accent-blue border-t-transparent"></div>
+      <div className="flex items-center justify-center h-screen bg-[#0a0e1a]">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#3b82f6] border-t-transparent"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-dark-bg p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2">Canais</h1>
-          <p className="text-gray-400 text-lg">Gerencie seus bots e canais do Telegram</p>
+          <h1 className="text-2xl font-bold text-[#f1f5f9]">Canais</h1>
+          <p className="text-sm text-[#64748b] mt-1">Gerencie seus bots e canais do Telegram</p>
         </div>
         <button
           onClick={() => { setForm(emptyForm); setEditingId(null); setShowForm(true); }}
-          className="bg-gradient-to-r from-accent-blue to-accent-cyan text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg hover:shadow-accent-blue/50 transition-all duration-300"
+          className="px-4 py-2.5 bg-[#3b82f6] text-white rounded-lg text-sm font-medium hover:bg-[#2563eb] transition-colors"
         >
           + Novo Canal
         </button>
@@ -166,61 +151,67 @@ export default function ChannelsPage() {
 
       {/* Channel List */}
       {channels.length === 0 && !showForm ? (
-        <div className="bg-dark-card border border-dark-border rounded-2xl p-12 text-center">
-          <svg className="mx-auto h-16 w-16 text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <h3 className="text-xl font-medium text-white mb-2">Nenhum canal configurado</h3>
-          <p className="text-gray-400">Adicione um canal para começar a publicar em múltiplos bots</p>
+        <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-8 text-center">
+          <h3 className="text-sm font-medium text-[#f1f5f9] mb-1">Nenhum canal configurado</h3>
+          <p className="text-xs text-[#64748b]">Adicione um canal para comecar a publicar</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
           {channels.map((channel) => (
-            <div key={channel.id} className={`bg-dark-card border rounded-2xl p-6 transition-all duration-300 ${channel.enabled ? 'border-dark-border hover:border-accent-blue' : 'border-dark-border opacity-60'}`}>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-white">{channel.name}</h3>
-                  <p className="text-sm text-gray-400">Chat ID: {channel.chatId}</p>
-                  {channel._count && (
-                    <p className="text-sm text-gray-500">{channel._count.posts} posts</p>
-                  )}
+            <div key={channel.id} className={`bg-[#111827] border border-[#1e293b] rounded-lg p-5 hover:border-[#334155] transition-colors ${!channel.enabled ? 'opacity-50' : ''}`}>
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-md flex items-center justify-center text-sm font-bold ${channel.enabled ? 'bg-[#3b82f6] text-white' : 'bg-[#1e293b] text-[#64748b]'}`}>
+                    {channel.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#f1f5f9]">{channel.name}</h3>
+                    <p className="text-xs text-[#64748b]">Chat ID: {channel.chatId}</p>
+                    {channel._count && (
+                      <p className="text-xs text-[#475569]">{channel._count.posts} posts</p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1 text-xs font-semibold rounded-full ${channel.enabled ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-red-500/10 text-red-400 border border-red-500/30'}`}>
-                    {channel.enabled ? 'Ativo' : 'Inativo'}
-                  </span>
-                </div>
+                <span className={`px-2 py-0.5 text-[10px] font-medium rounded-md ${channel.enabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                  {channel.enabled ? 'Ativo' : 'Inativo'}
+                </span>
               </div>
 
-              <div className="space-y-2 mb-4">
-                {channel.modelName && (
-                  <p className="text-sm text-gray-300">Modelo: {channel.modelName}</p>
+              <div className="space-y-1 mb-4">
+                {channel.ctaPrompt && (
+                  <p className="text-xs text-[#64748b] truncate">CTA Prompt configurado</p>
                 )}
-                <p className="text-sm text-gray-400 truncate">CTA: {channel.ctaLink}</p>
+                {channel.enquetePrompt && (
+                  <p className="text-xs text-[#64748b] truncate">Enquete Prompt configurado</p>
+                )}
+                {channel.previewPrompt && (
+                  <p className="text-xs text-[#64748b] truncate">Preview Prompt configurado</p>
+                )}
+                <p className="text-xs text-[#475569] truncate">CTA: {channel.ctaLink}</p>
               </div>
 
               <div className="flex gap-2">
                 <button
                   onClick={() => handleEdit(channel)}
-                  className="flex-1 bg-dark-bg border border-accent-blue text-accent-blue px-3 py-2 rounded-xl text-sm font-medium hover:bg-accent-blue/10 transition-all"
+                  className="flex-1 text-xs font-medium text-[#64748b] py-2 border border-[#1e293b] rounded-lg hover:border-[#3b82f6] hover:text-[#3b82f6] transition-colors"
                 >
                   Editar
                 </button>
                 <button
                   onClick={() => handleTestConnection(channel.id)}
-                  className="flex-1 bg-dark-bg border border-accent-cyan text-accent-cyan px-3 py-2 rounded-xl text-sm font-medium hover:bg-accent-cyan/10 transition-all"
+                  className="flex-1 text-xs font-medium text-[#64748b] py-2 border border-[#1e293b] rounded-lg hover:border-[#3b82f6] hover:text-[#3b82f6] transition-colors"
                 >
                   Testar
                 </button>
                 <button
                   onClick={() => handleToggle(channel)}
-                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${channel.enabled ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20' : 'bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20'}`}
+                  className={`text-xs font-medium py-2 px-3 border rounded-lg transition-colors ${channel.enabled ? 'border-amber-500/20 text-amber-400 hover:bg-amber-500/5' : 'border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/5'}`}
                 >
                   {channel.enabled ? 'Desativar' : 'Ativar'}
                 </button>
                 <button
                   onClick={() => handleDelete(channel.id)}
-                  className="px-3 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-sm font-medium hover:bg-red-500/20 transition-all"
+                  className="text-xs font-medium text-[#64748b] py-2 px-3 border border-[#1e293b] rounded-lg hover:border-red-500/30 hover:text-red-400 transition-colors"
                 >
                   Excluir
                 </button>
@@ -232,141 +223,85 @@ export default function ChannelsPage() {
 
       {/* Channel Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowForm(false)}>
-          <div className="bg-dark-card border border-dark-border rounded-2xl max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-2xl font-bold text-white mb-6">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={() => setShowForm(false)}>
+          <div className="bg-[#111827] border border-[#1e293b] rounded-lg max-w-2xl w-full p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-[#f1f5f9] mb-4">
               {editingId ? 'Editar Canal' : 'Novo Canal'}
             </h3>
 
-            <div className="space-y-4">
-              {/* Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Nome *</label>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none"
-                    placeholder="Ex: Victoria VIP"
-                  />
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Nome *</label>
+                  <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm" placeholder="Ex: Victoria VIP" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">CTA Link *</label>
-                  <input
-                    type="text"
-                    value={form.ctaLink}
-                    onChange={(e) => setForm({ ...form, ctaLink: e.target.value })}
-                    className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none"
-                    placeholder="https://t.me/seubot?start=start"
-                  />
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">CTA Link *</label>
+                  <input type="text" value={form.ctaLink} onChange={(e) => setForm({ ...form, ctaLink: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm" placeholder="https://t.me/seubot?start=start" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Bot Token *</label>
-                <input
-                  type="password"
-                  value={form.botToken}
-                  onChange={(e) => setForm({ ...form, botToken: e.target.value })}
-                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none"
-                  placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-                />
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">Bot Token *</label>
+                <input type="password" value={form.botToken} onChange={(e) => setForm({ ...form, botToken: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm" placeholder="123456:ABC-DEF..." />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Chat ID *</label>
-                <input
-                  type="text"
-                  value={form.chatId}
-                  onChange={(e) => setForm({ ...form, chatId: e.target.value })}
-                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none"
-                  placeholder="-1001234567890"
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">Chat ID *</label>
+                <input type="text" value={form.chatId} onChange={(e) => setForm({ ...form, chatId: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm" placeholder="-1001234567890" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">Media Storage Chat ID</label>
+                <input type="text" value={form.mediaStorageChatId} onChange={(e) => setForm({ ...form, mediaStorageChatId: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm" placeholder="-1001234567890 (canal para armazenar midias)" />
+                <p className="mt-1 text-[10px] text-[#475569]">Chat ID de um canal/grupo privado onde as imagens serao armazenadas pelo bot</p>
+              </div>
+
+              {/* Preview Prompt */}
+              <div className="border-t border-[#1e293b] pt-3 mt-3">
+                <h4 className="text-xs font-semibold text-[#f1f5f9] mb-1">Prompt de Preview (Copy da foto)</h4>
+                <p className="text-[10px] text-[#64748b] mb-2">Defina o perfil da modelo, estilo de escrita, exemplos de copy, etc. Este prompt sera usado para gerar as previas das fotos.</p>
+                <textarea
+                  value={form.previewPrompt}
+                  onChange={(e) => setForm({ ...form, previewPrompt: e.target.value })}
+                  rows={6}
+                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
+                  placeholder={`Ex:\nNome: Victoria\nCaracteristicas: Loira, corpo fitness, tatuada, madura\nPersonalidade: Safada, provocante, carinhosa\n\n--- Exemplos de Copy ---\nBUNDÃO EMPINADO 🍑🔥\n\nLoira gostosa de quatro...\nCorpo perfeito rebolando.\n\nQuer ver tudo? 👇\n\n🍑 VER A SAFADA 🍑`}
                 />
               </div>
 
-              {/* Model Profile */}
-              <div className="border-t border-dark-border pt-4 mt-4">
-                <h4 className="text-lg font-semibold text-white mb-4">Perfil da Modelo</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Nome</label>
-                    <input
-                      type="text"
-                      value={form.modelName}
-                      onChange={(e) => setForm({ ...form, modelName: e.target.value })}
-                      className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none"
-                      placeholder="Ex: Victoria"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Profissão</label>
-                    <input
-                      type="text"
-                      value={form.modelProfession}
-                      onChange={(e) => setForm({ ...form, modelProfession: e.target.value })}
-                      className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none"
-                      placeholder="Ex: Engenheira da Petrobras"
-                    />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Características</label>
-                  <textarea
-                    value={form.modelCharacteristics}
-                    onChange={(e) => setForm({ ...form, modelCharacteristics: e.target.value })}
-                    rows={2}
-                    className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none"
-                    placeholder="Ex: Loira, corpo fitness, tatuada, olhos claros"
-                  />
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Personalidade</label>
-                  <textarea
-                    value={form.modelPersonality}
-                    onChange={(e) => setForm({ ...form, modelPersonality: e.target.value })}
-                    rows={2}
-                    className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none"
-                    placeholder="Ex: Safada, provocante, carinhosa, divertida"
-                  />
-                </div>
+              {/* CTA Prompt */}
+              <div className="border-t border-[#1e293b] pt-3 mt-3">
+                <h4 className="text-xs font-semibold text-[#f1f5f9] mb-1">Prompt de CTA Presente</h4>
+                <p className="text-[10px] text-[#64748b] mb-2">Defina como a IA deve gerar as mensagens de CTA presente. Inclua nome, personalidade e exemplos de CTAs.</p>
+                <textarea
+                  value={form.ctaPrompt}
+                  onChange={(e) => setForm({ ...form, ctaPrompt: e.target.value })}
+                  rows={6}
+                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
+                  placeholder={`Ex:\nNome: Victoria\nPersonalidade: Safada e carinhosa\n\n--- Exemplos ---\nEU AINDA TO AQUI 🎁\n\nVim te dar um presentinho...\nAbre antes que eu mude de ideia 😈\n\n🎁 RESGATAR PRESENTE`}
+                />
               </div>
 
-              {/* Copy Examples */}
-              <div className="border-t border-dark-border pt-4 mt-4">
-                <h4 className="text-lg font-semibold text-white mb-2">Exemplos de Copy</h4>
-                <p className="text-sm text-gray-400 mb-4">As copys geradas vão seguir exatamente a estrutura destes exemplos</p>
-                {form.copyExamples.map((example, idx) => (
-                  <div key={idx} className="mb-3">
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Exemplo {idx + 1}</label>
-                    <textarea
-                      value={example}
-                      onChange={(e) => {
-                        const updated = [...form.copyExamples];
-                        updated[idx] = e.target.value;
-                        setForm({ ...form, copyExamples: updated });
-                      }}
-                      rows={4}
-                      className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none text-sm"
-                      placeholder="Cole aqui uma copy completa de exemplo..."
-                    />
-                  </div>
-                ))}
+              {/* Enquete Prompt */}
+              <div className="border-t border-[#1e293b] pt-3 mt-3">
+                <h4 className="text-xs font-semibold text-[#f1f5f9] mb-1">Prompt de Enquete</h4>
+                <p className="text-[10px] text-[#64748b] mb-2">Defina como a IA deve gerar as enquetes. Inclua nome, personalidade e exemplos de enquetes.</p>
+                <textarea
+                  value={form.enquetePrompt}
+                  onChange={(e) => setForm({ ...form, enquetePrompt: e.target.value })}
+                  rows={6}
+                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
+                  placeholder={`Ex:\nNome: Victoria\nPersonalidade: Provocante e interativa\n\n--- Exemplos ---\nONDE VC GOZARIA EM MIM? 💦\n- Na boca 👄\n- No corpo 🍑\n- Dentro 😈`}
+                />
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={handleSubmit}
-                className="flex-1 bg-gradient-to-r from-accent-blue to-accent-cyan text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg hover:shadow-accent-blue/50 transition-all duration-300"
-              >
+            <div className="flex gap-2 mt-5">
+              <button onClick={handleSubmit} className="flex-1 px-4 py-2.5 bg-[#3b82f6] text-white rounded-lg text-sm font-medium hover:bg-[#2563eb] transition-colors">
                 {editingId ? 'Salvar' : 'Criar Canal'}
               </button>
-              <button
-                onClick={() => { setShowForm(false); setEditingId(null); }}
-                className="flex-1 bg-dark-bg border border-dark-border text-white px-6 py-3 rounded-xl font-semibold hover:bg-dark-border transition-all duration-300"
-              >
+              <button onClick={() => setShowForm(false)} className="flex-1 px-4 py-2.5 border border-[#1e293b] text-[#64748b] rounded-lg text-sm font-medium hover:border-[#334155] transition-colors">
                 Cancelar
               </button>
             </div>

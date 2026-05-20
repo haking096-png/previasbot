@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { grokConfig, ctaConfig } from '../config';
+import { grokConfig } from '../config';
 import logger from '../utils/logger';
 import { GrokAnalysisResult } from './grok.service';
 
@@ -25,50 +25,30 @@ export class PreviewService {
     try {
       logger.info('Generating preview from analysis', { channelId });
 
-      let modelProfile: string;
-      let copyExamples: string;
+      let channelPrompt = '';
       let effectiveCtaLink = ctaLink;
 
       if (channelId) {
-        // Use channel-specific settings
         const prisma = (await import('../utils/prisma')).default;
         const channel = await prisma.channel.findUnique({ where: { id: channelId } });
 
         if (channel) {
           effectiveCtaLink = channel.ctaLink || ctaLink;
-          const channelSettings: Record<string, string> = {
-            model_name: channel.modelName || '',
-            model_profession: channel.modelProfession || '',
-            model_characteristics: channel.modelCharacteristics || '',
-            model_personality: channel.modelPersonality || '',
-          };
-          modelProfile = this.buildModelProfile(channelSettings);
-
-          // Parse channel copy examples from JSON
-          let examples: string[] = [];
-          if (channel.copyExamples) {
-            try {
-              examples = JSON.parse(channel.copyExamples);
-            } catch { examples = []; }
-          }
-          copyExamples = this.buildCopyExamplesFromArray(examples);
-        } else {
-          const settings = await this.getSettings();
-          modelProfile = this.buildModelProfile(settings);
-          copyExamples = this.getCopyExamples(settings);
+          channelPrompt = channel.previewPrompt || '';
         }
-      } else {
-        // Fallback to global settings
-        const settings = await this.getSettings();
-        modelProfile = this.buildModelProfile(settings);
-        copyExamples = this.getCopyExamples(settings);
       }
 
-      const prompt = `Você é uma influenciadora loira criando prévias sensuais para seu canal do Telegram. Seja natural, criativa e provocante como uma pessoa real.
+      if (!channelPrompt) {
+        const settings = await this.getSettings();
+        channelPrompt = this.buildLegacyPromptFromSettings(settings);
+      }
 
-${modelProfile}
+      const prompt = `${channelPrompt}
 
-Baseado nesta análise da foto:
+---
+
+Baseado nesta análise da foto, crie UMA copy original seguindo EXATAMENTE o estilo, tom, vocabulário e estrutura dos exemplos acima:
+
 - Cenário: ${analysis.scenario || 'não identificado'}
 - Pose: ${analysis.pose || 'não identificada'}
 - Roupa: ${analysis.clothing || 'não identificada'}
@@ -79,50 +59,25 @@ Baseado nesta análise da foto:
 - Sensação: ${analysis.feeling || 'não identificada'}
 - Descrição completa: ${analysis.description || 'não disponível'}
 - Categoria: ${analysis.category || 'não categorizada'}
-- Sugestão de headline: ${analysis.headline || 'nenhuma'}
 
-${copyExamples}
+FORMATO DE SAÍDA (retorne APENAS texto puro, SEM HTML, SEM markdown):
 
-FORMATO EXATO (siga RIGOROSAMENTE, retorne APENAS texto puro SEM HTML):
+HEADLINE EM CAPS COM EMOJIS
 
-HEADLINE COM EMOJIS EM CAPS
+[corpo: 2-3 linhas no estilo dos exemplos]
 
-[Linha 1: descrição safada da cena]
-[Linha 2: mais detalhes sensuais]
-[Linha 3 (opcional): complemento provocante]
-
-[Pergunta provocante com emoji no final? 👇]
+[pergunta provocante com emoji 👇]
 
 [EMOJI TEXTO DO CTA EMOJI]
 [EMOJI TEXTO DO CTA EMOJI]
 [EMOJI TEXTO DO CTA EMOJI]
 
-EXEMPLO:
-BUNDÃO EMPINADO COM PLUG 🍑🔥
-
-Coroa loira de quatro, bundão pra cima e plugzão roxo enfiado fundo...
-Corpo perfeito rebolando pra você ver cada detalhe.
-Essa madura safada adora provocar assim.
-
-Quer ver ela gemendo e levando gostoso? 👇
-
-🍑 VER A SAFADA DE QUATRO 🍑
-🍑 VER A SAFADA DE QUATRO 🍑
-🍑 VER A SAFADA DE QUATRO 🍑
-
-REGRAS CRÍTICAS:
-- HEADLINE: TEXTO EM CAPS com emojis (sem emoji no início, emojis no final)
-- CORPO: 2-3 linhas descritivas, safadas e explícitas
-- PRÉ-CTA: 1 pergunta provocante terminando com emoji 👇
-- CTA: Mesma frase repetida 3x com emojis envolvendo o texto
-- SEJA ÚNICA E CRIATIVA - NUNCA repita as mesmas palavras ou frases
-- Use linguagem SENSUAL com censura parcial nas palavras explícitas (buc*tinha, cuz*nho, bund*o, peit*es). Outras palavras como safada, gostoso, peladinha, gemendo, rebolando podem ser escritas normalmente.
-- Sempre mencione que é LOIRA
-- Varie os CTAs: VER A SAFADA, CLICA PRA VER, VEM VER TUDO, ASSISTE AGORA, ENTRA NO VIP, VER PELADINHA
-- NÃO use HTML, NÃO use <b>, <a>, <i> ou qualquer tag
-- Retorne APENAS texto puro
-
-IMPORTANTE: Cada copy deve ser COMPLETAMENTE DIFERENTE. Use sinônimos, varie estruturas, seja criativa!`;
+REGRAS:
+- COPIE o tom, estilo de emojis, vocabulário e nível de ousadia dos exemplos acima
+- Varie o conteúdo baseado na análise da foto, mas MANTENHA o estilo idêntico aos exemplos
+- Cada copy deve ser DIFERENTE das anteriores
+- NÃO use HTML ou tags
+- Retorne APENAS texto puro`;
 
       const response = await axios.post(
         `${this.apiUrl}/chat/completions`,
@@ -131,7 +86,7 @@ IMPORTANTE: Cada copy deve ser COMPLETAMENTE DIFERENTE. Use sinônimos, varie es
           messages: [
             {
               role: 'system',
-              content: 'Você gera textos sensuais para prévias de Telegram. Retorne APENAS texto puro sem formatação HTML. Seja extremamente safada e provocante.'
+              content: 'Você é uma copywriter. Sua tarefa é gerar textos seguindo EXATAMENTE o estilo e tom dos exemplos fornecidos pelo usuário. Retorne APENAS texto puro sem formatação.'
             },
             {
               role: 'user',
@@ -244,6 +199,8 @@ IMPORTANTE: Cada copy deve ser COMPLETAMENTE DIFERENTE. Use sinônimos, varie es
    * body text (plain)
    * <b>preCta question 👇</b>
    * <a href="link"><b>CTA</b></a> x3
+   *
+   * CTAs are clickable text links, not inline keyboard buttons.
    */
   formatForTelegram(preview: PreviewContent): string {
     const ctaLines = preview.cta.split('\n').filter(line => line.trim());
@@ -251,13 +208,30 @@ IMPORTANTE: Cada copy deve ser COMPLETAMENTE DIFERENTE. Use sinônimos, varie es
       .map(cta => `<a href="${preview.buttonUrl}"><b>${cta.trim()}</b></a>`)
       .join('\n');
 
-    return `<b>${preview.headline}</b>
+    const headline = `<b>${preview.headline}</b>`;
+    const preCta = `<b>${preview.preCta}</b>`;
 
-${preview.body}
+    let caption = `${headline}\n\n${preview.body}\n\n${preCta}\n\n${ctaLinks}`;
 
-<b>${preview.preCta}</b>
+    // Telegram caption limit is 1024 chars — truncate body if needed
+    if (caption.length > 1024) {
+      const overhead = headline.length + preCta.length + ctaLinks.length + 8; // 8 = newlines
+      const maxBody = 1024 - overhead;
+      const truncatedBody = preview.body.substring(0, Math.max(maxBody - 3, 0)) + '...';
+      caption = `${headline}\n\n${truncatedBody}\n\n${preCta}\n\n${ctaLinks}`;
+    }
 
-${ctaLinks}`;
+    return caption;
+  }
+
+  /**
+   * Builds inline keyboard buttons from the preview CTA lines.
+   * Each CTA line becomes a clickable button pointing to buttonUrl.
+   */
+  buildInlineKeyboard(preview: PreviewContent): { inline_keyboard: Array<Array<{ text: string; url: string }>> } {
+    const ctaLines = preview.cta.split('\n').filter(line => line.trim());
+    const buttons = ctaLines.map(cta => [{ text: cta.trim(), url: preview.buttonUrl }]);
+    return { inline_keyboard: buttons };
   }
 
   // ━━━━━━━━━━━━━━━━━━━ Private Methods ━━━━━━━━━━━━━━━━━━━
@@ -277,28 +251,20 @@ ${ctaLinks}`;
     }
   }
 
-  private buildModelProfile(settings: Record<string, string>): string {
+  private buildLegacyPromptFromSettings(settings: Record<string, string>): string {
+    const parts: string[] = [];
     const name = settings.model_name || '';
     const profession = settings.model_profession || '';
     const characteristics = settings.model_characteristics || '';
     const personality = settings.model_personality || '';
 
-    if (!name && !profession && !characteristics && !personality) {
-      return 'Você é uma modelo loira, madura, sensual e provocante.';
-    }
+    if (name) parts.push(`Nome da modelo: ${name}`);
+    if (profession) parts.push(`Profissão: ${profession}`);
+    if (characteristics) parts.push(`Características: ${characteristics}`);
+    if (personality) parts.push(`Personalidade: ${personality}`);
 
-    let profile = 'SOBRE VOCÊ:\n';
-    if (name) profile += `- Nome: ${name}\n`;
-    if (profession) profile += `- Profissão: ${profession}\n`;
-    if (characteristics) profile += `- Características: ${characteristics}\n`;
-    if (personality) profile += `- Personalidade: ${personality}\n`;
-
-    return profile;
-  }
-
-  private getCopyExamples(settings: Record<string, string>): string {
+    // Legacy copy examples
     const examples: string[] = [];
-
     for (let i = 1; i <= 5; i++) {
       const example = settings[`copy_example_${i}`];
       if (example && example.trim()) {
@@ -306,20 +272,12 @@ ${ctaLinks}`;
       }
     }
 
-    return this.buildCopyExamplesFromArray(examples);
-  }
-
-  private buildCopyExamplesFromArray(examples: string[]): string {
-    if (examples.length === 0) {
-      return '';
+    if (examples.length > 0) {
+      parts.push('\n--- Exemplos de Copy ---');
+      examples.forEach((ex, i) => parts.push(`Exemplo ${i + 1}:\n${ex}`));
     }
 
-    const formatted = examples.map((ex, i) => `EXEMPLO ${i + 1}:\n${ex}`).join('\n\n');
-
-    return `COPIE EXATAMENTE a estrutura, tom, estilo de emojis e padrão de quebras de linha destes exemplos.
-Apenas VARIE o conteúdo baseado na análise da imagem. A ESTRUTURA deve ser IDÊNTICA aos exemplos.
-
-${formatted}`;
+    return parts.join('\n') || 'Você é uma modelo sensual e provocante.';
   }
 
   private generateFallbackPreview(analysis: GrokAnalysisResult, ctaLink: string): PreviewContent {

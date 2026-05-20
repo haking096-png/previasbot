@@ -32,3 +32,20 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+interface ChannelState {
+  selectedChannelId: string | null;
+  setSelectedChannelId: (id: string | null) => void;
+}
+
+export const useChannelStore = create<ChannelState>()(
+  persist(
+    (set) => ({
+      selectedChannelId: null,
+      setSelectedChannelId: (id) => set({ selectedChannelId: id }),
+    }),
+    {
+      name: 'channel-storage',
+    }
+  )
+);

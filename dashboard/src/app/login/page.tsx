@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import toast from 'react-hot-toast';
+import Logo from '@/components/ui/Logo';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('admin');
@@ -31,53 +32,59 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-dark-bg">
-      <div className="bg-dark-card border border-dark-border p-8 rounded-2xl shadow-lg w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">Telegram Preview Bot</h1>
-          <p className="text-gray-400 mt-2">Dashboard de Gerenciamento</p>
+    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-base)] mesh-bg noise-overlay">
+      <div className="w-full max-w-sm animate-fade-slide-up">
+        <div className="flex justify-center mb-8">
+          <Logo variant="full" size="lg" />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-300">
-              Usuário
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-dark-border rounded-xl shadow-sm focus:outline-none focus:ring-accent-blue focus:border-accent-blue text-white bg-dark-bg"
-              required
-            />
+        <div className="glass-card border border-[var(--border-subtle)] p-8 rounded-[var(--radius-lg)]">
+          <div className="text-center mb-6">
+            <h1 className="text-lg font-bold text-[var(--text-primary)] font-display">Bem-vindo de volta</h1>
+            <p className="text-[var(--text-muted)] text-xs mt-1">Entre para acessar o painel</p>
           </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300">
-              Senha
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-dark-border rounded-xl shadow-sm focus:outline-none focus:ring-accent-blue focus:border-accent-blue text-white bg-dark-bg"
-              required
-            />
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label htmlFor="username" className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                Usuário
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="block w-full px-3 py-2.5 border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-[var(--text-primary)] bg-[var(--surface-base)] focus:border-[var(--accent-cyan)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-cyan)]/30 text-sm transition-all duration-200"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                Senha
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="block w-full px-3 py-2.5 border border-[var(--border-subtle)] rounded-[var(--radius-md)] text-[var(--text-primary)] bg-[var(--surface-base)] focus:border-[var(--accent-cyan)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-cyan)]/30 text-sm transition-all duration-200"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 px-4 rounded-[var(--radius-md)] text-sm font-medium text-white bg-gradient-to-r from-[var(--accent-cyan)] to-[var(--accent-blue)] hover:shadow-lg hover:shadow-cyan-500/20 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 active:scale-[0.98]"
+            >
+              {loading ? 'Entrando...' : 'Entrar'}
+            </button>
+          </form>
+
+          <div className="mt-5 text-center text-[10px] text-[var(--text-muted)]">
+            <p>Senha padrão: admin123</p>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-gradient-to-r from-accent-blue to-accent-cyan hover:shadow-lg hover:shadow-accent-blue/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-blue disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>Senha padrão: admin123</p>
         </div>
       </div>
     </div>

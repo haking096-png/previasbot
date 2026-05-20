@@ -41,13 +41,23 @@ export class TelegramService {
   }
 
   async publishPreview(
-    imagePath: string,
+    imageSource: string,
     preview: PreviewContent,
     botToken?: string,
-    chatId?: string
+    chatId?: string,
+    isFileId: boolean = false,
+    mediaType: string = 'IMAGE'
   ): Promise<{ messageId: string }> {
     const token = botToken || telegramConfig.botToken;
     const targetChatId = chatId || this.defaultChatId;
+
+    if (!botToken || !chatId) {
+      logger.warn('publishPreview called without explicit botToken/chatId, using global fallback', {
+        hasBotToken: !!botToken,
+        hasChatId: !!chatId,
+        targetChatId,
+      });
+    }
 
     if (!token) {
       throw new Error('Telegram bot token not configured');
@@ -60,20 +70,34 @@ export class TelegramService {
     const bot = this.getBotInstance(token);
 
     try {
-      logger.info('Publishing preview to Telegram', { imagePath, chatId: targetChatId });
+      logger.info('Publishing preview to Telegram', { chatId: targetChatId, isFileId, mediaType });
 
       const caption = previewService.formatForTelegram(preview);
+      const source = isFileId ? imageSource : { source: fs.createReadStream(imageSource) };
 
-      const message = await bot.telegram.sendPhoto(
-        targetChatId,
-        { source: fs.createReadStream(imagePath) },
-        {
-          caption,
-          parse_mode: 'HTML',
-        }
-      );
+      let message;
 
-      logger.info('Preview published successfully', { messageId: message.message_id });
+      if (mediaType === 'VIDEO') {
+        message = await bot.telegram.sendVideo(
+          targetChatId,
+          source,
+          {
+            caption,
+            parse_mode: 'HTML',
+          }
+        );
+      } else {
+        message = await bot.telegram.sendPhoto(
+          targetChatId,
+          source,
+          {
+            caption,
+            parse_mode: 'HTML',
+          }
+        );
+      }
+
+      logger.info('Preview published successfully', { messageId: message.message_id, mediaType });
 
       return { messageId: message.message_id.toString() };
     } catch (error: any) {

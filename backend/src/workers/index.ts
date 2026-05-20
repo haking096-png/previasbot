@@ -10,7 +10,14 @@ import './generate.worker';
 import './publish.worker';
 import './schedule.worker';
 
+import { startCtaPresenteWorker, stopCtaPresenteWorker } from './ctaPresente.worker';
+import { startEnqueteWorker, stopEnqueteWorker } from './enquete.worker';
+
 logger.info('Workers initialized');
+
+// Start CTA Presente and Enquete workers
+startCtaPresenteWorker();
+startEnqueteWorker();
 
 async function setupRecurringJobs() {
   await importQueue.add(
@@ -29,11 +36,11 @@ async function setupRecurringJobs() {
     {},
     {
       repeat: {
-        pattern: '*/10 * * * *',
+        pattern: '*/2 * * * *',
       },
     }
   );
-  logger.info('Schedule job scheduled (every 10 minutes)');
+  logger.info('Schedule job scheduled (every 2 minutes)');
 
   const pendingMedia = await import('../utils/prisma').then((m) =>
     m.default.mediaItem.findMany({
@@ -56,10 +63,14 @@ setupRecurringJobs().catch((error) => {
 
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down workers');
+  stopCtaPresenteWorker();
+  stopEnqueteWorker();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down workers');
+  stopCtaPresenteWorker();
+  stopEnqueteWorker();
   process.exit(0);
 });

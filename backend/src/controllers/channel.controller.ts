@@ -6,7 +6,7 @@ import logger from '../utils/logger';
 export class ChannelController {
   async create(req: Request, res: Response) {
     try {
-      const { name, botToken, chatId, ctaLink, modelName, modelProfession, modelCharacteristics, modelPersonality, copyExamples } = req.body;
+      const { name, botToken, chatId, ctaLink, mediaStorageChatId, ctaPrompt, enquetePrompt, previewPrompt } = req.body;
 
       if (!name || !botToken || !chatId || !ctaLink) {
         return res.status(400).json({ error: 'name, botToken, chatId e ctaLink são obrigatórios' });
@@ -18,11 +18,10 @@ export class ChannelController {
           botToken,
           chatId,
           ctaLink,
-          modelName: modelName || null,
-          modelProfession: modelProfession || null,
-          modelCharacteristics: modelCharacteristics || null,
-          modelPersonality: modelPersonality || null,
-          copyExamples: copyExamples ? JSON.stringify(copyExamples) : null,
+          mediaStorageChatId: mediaStorageChatId || null,
+          ctaPrompt: ctaPrompt || null,
+          enquetePrompt: enquetePrompt || null,
+          previewPrompt: previewPrompt || null,
         },
       });
 
@@ -73,7 +72,7 @@ export class ChannelController {
   async update(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { name, botToken, chatId, ctaLink, modelName, modelProfession, modelCharacteristics, modelPersonality, copyExamples, enabled } = req.body;
+      const { name, botToken, chatId, ctaLink, mediaStorageChatId, ctaPrompt, enquetePrompt, previewPrompt, enabled } = req.body;
 
       const channel = await prisma.channel.update({
         where: { id },
@@ -82,11 +81,10 @@ export class ChannelController {
           ...(botToken !== undefined && { botToken }),
           ...(chatId !== undefined && { chatId }),
           ...(ctaLink !== undefined && { ctaLink }),
-          ...(modelName !== undefined && { modelName }),
-          ...(modelProfession !== undefined && { modelProfession }),
-          ...(modelCharacteristics !== undefined && { modelCharacteristics }),
-          ...(modelPersonality !== undefined && { modelPersonality }),
-          ...(copyExamples !== undefined && { copyExamples: JSON.stringify(copyExamples) }),
+          ...(mediaStorageChatId !== undefined && { mediaStorageChatId: mediaStorageChatId || null }),
+          ...(ctaPrompt !== undefined && { ctaPrompt: ctaPrompt || null }),
+          ...(enquetePrompt !== undefined && { enquetePrompt: enquetePrompt || null }),
+          ...(previewPrompt !== undefined && { previewPrompt: previewPrompt || null }),
           ...(enabled !== undefined && { enabled }),
         },
       });

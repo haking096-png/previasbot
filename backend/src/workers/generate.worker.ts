@@ -4,34 +4,41 @@ import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 import previewService from '../services/preview.service';
 import { ctaConfig } from '../config';
+import { censorText } from '../utils/censor';
 
 // Auto-schedule function
-async function autoSchedulePost(mediaItemId: string, previewId: string) {
+async function autoSchedulePost(mediaItemId: string, previewId: string, channelId?: string) {
   try {
-    // Get enabled schedules
-    const schedules = await prisma.schedule.findMany({
-      where: { enabled: true },
+    // Get enabled schedules for this channel (or global if no channel)
+    const whereClause: any = { enabled: true };
+    if (channelId) {
+      whereClause.channelId = channelId;
+    } else {
+      whereClause.channelId = null;
+    }
+
+    let schedules = await prisma.schedule.findMany({
+      where: whereClause,
       orderBy: { time: 'asc' },
     });
 
-    if (schedules.length === 0) {
-      logger.warn('No enabled schedules found for auto-scheduling');
-      return;
+    // Fallback: if no channel-specific schedules, try global ones
+    if (schedules.length === 0 && channelId) {
+      schedules = await prisma.schedule.findMany({
+        where: { enabled: true, channelId: null },
+        orderBy: { time: 'asc' },
+      });
     }
 
-    // Get existing scheduled posts
-    const existingPosts = await prisma.post.findMany({
-      where: {
-        status: { in: ['SCHEDULED', 'PUBLISHING'] },
-      },
-      orderBy: { scheduledFor: 'desc' },
-    });
+    if (schedules.length === 0) {
+      logger.warn('No enabled schedules found for auto-scheduling', { channelId });
+      return;
+    }
 
     // Find next available schedule slot
     const now = new Date();
     let scheduledFor: Date | null = null;
 
-    // Try to find a slot today or in the future
     for (let daysAhead = 0; daysAhead < 30; daysAhead++) {
       for (const schedule of schedules) {
         const [hours, minutes] = schedule.time.split(':').map(Number);
@@ -39,17 +46,22 @@ async function autoSchedulePost(mediaItemId: string, previewId: string) {
         candidateDate.setDate(candidateDate.getDate() + daysAhead);
         candidateDate.setHours(hours, minutes, 0, 0);
 
-        // Skip if in the past
-        if (candidateDate <= now) continue;
+        // Skip if in the past (with 1 minute buffer)
+        if (candidateDate.getTime() <= now.getTime() + 60000) continue;
 
-        // Check if this slot is already taken
-        const isSlotTaken = existingPosts.some(post => {
-          if (!post.scheduledFor) return false;
-          const postDate = new Date(post.scheduledFor);
-          return Math.abs(postDate.getTime() - candidateDate.getTime()) < 60000; // Within 1 minute
+        // Check if this slot is already taken (±30 second window)
+        const slotStart = new Date(candidateDate.getTime() - 30000);
+        const slotEnd = new Date(candidateDate.getTime() + 30000);
+
+        const existingPost = await prisma.post.findFirst({
+          where: {
+            scheduledFor: { gte: slotStart, lte: slotEnd },
+            channelId: channelId || null,
+            status: { in: ['SCHEDULED', 'PUBLISHING', 'PUBLISHED'] },
+          },
         });
 
-        if (!isSlotTaken) {
+        if (!existingPost) {
           scheduledFor = candidateDate;
           break;
         }
@@ -58,30 +70,55 @@ async function autoSchedulePost(mediaItemId: string, previewId: string) {
     }
 
     if (!scheduledFor) {
-      logger.warn('Could not find available schedule slot');
+      logger.warn('Could not find available schedule slot', { channelId });
       return;
     }
 
-    // Create scheduled post
-    const post = await prisma.post.create({
-      data: {
-        mediaItemId,
-        previewId,
-        scheduledFor,
-        status: 'SCHEDULED',
-      },
+    // Use transaction to prevent race conditions
+    const post = await prisma.$transaction(async (tx) => {
+      const slotStart = new Date(scheduledFor!.getTime() - 30000);
+      const slotEnd = new Date(scheduledFor!.getTime() + 30000);
+
+      const conflict = await tx.post.findFirst({
+        where: {
+          scheduledFor: { gte: slotStart, lte: slotEnd },
+          channelId: channelId || null,
+          status: { in: ['SCHEDULED', 'PUBLISHING', 'PUBLISHED'] },
+        },
+      });
+
+      if (conflict) return null;
+
+      return tx.post.create({
+        data: {
+          mediaItemId,
+          previewId,
+          channelId: channelId || null,
+          scheduledFor: scheduledFor!,
+          status: 'SCHEDULED',
+        },
+      });
     });
+
+    if (!post) {
+      logger.info('Slot conflict in autoSchedulePost, skipping', { mediaItemId, channelId });
+      return;
+    }
 
     // Add to publish queue
     const delay = scheduledFor.getTime() - Date.now();
     await publishQueue.add(
       'publish-post',
       { postId: post.id },
-      { delay: Math.max(0, delay) }
+      {
+        delay: Math.max(0, delay),
+        jobId: `publish-${post.id}`,
+      }
     );
 
     logger.info('Post auto-scheduled', {
       postId: post.id,
+      channelId,
       scheduledFor: scheduledFor.toISOString(),
     });
   } catch (error: any) {
@@ -109,6 +146,10 @@ export const generateWorker = new Worker(
         throw new Error(`Media analysis not found for: ${mediaItemId}`);
       }
 
+      // ALWAYS use the channelId from the MediaItem itself, never from job data
+      const channelId = mediaItem.channelId || undefined;
+      logger.info('Using channelId from MediaItem', { mediaItemId, channelId });
+
       await prisma.mediaItem.update({
         where: { id: mediaItemId },
         data: { status: 'GENERATING_PREVIEW' },
@@ -132,7 +173,14 @@ export const generateWorker = new Worker(
         rawData: mediaItem.analysis.rawData ?? undefined,
       };
 
-      const previewContent = await previewService.generateFromAnalysis(analysisData, ctaConfig.link, job.data.channelId);
+      const previewContent = await previewService.generateFromAnalysis(analysisData, ctaConfig.link, channelId);
+
+      // Apply censoring to all text fields
+      previewContent.headline = censorText(previewContent.headline);
+      previewContent.body = censorText(previewContent.body);
+      previewContent.preCta = censorText(previewContent.preCta);
+      previewContent.cta = censorText(previewContent.cta);
+      previewContent.buttonText = censorText(previewContent.buttonText);
 
       const existingPreview = await prisma.preview.findUnique({
         where: { mediaItemId },
@@ -174,8 +222,24 @@ export const generateWorker = new Worker(
         data: { status: 'READY', processed: true },
       });
 
-      // Auto-schedule the post
-      await autoSchedulePost(mediaItem.id, preview.id);
+      // Auto-schedule the post (only if not already scheduled)
+      const existingPost = await prisma.post.findFirst({
+        where: {
+          mediaItemId: mediaItem.id,
+          previewId: preview.id,
+          status: { in: ['SCHEDULED', 'PUBLISHING', 'PUBLISHED'] },
+        },
+      });
+
+      if (!existingPost) {
+        if (channelId) {
+          await autoSchedulePost(mediaItem.id, preview.id, channelId);
+        } else {
+          logger.warn('Cannot auto-schedule: no channelId on media item', { mediaItemId });
+        }
+      } else {
+        logger.info('Post already scheduled for this preview, skipping auto-schedule', { mediaItemId, previewId: preview.id });
+      }
 
       await prisma.jobLog.create({
         data: {
@@ -215,7 +279,7 @@ export const generateWorker = new Worker(
   },
   {
     connection,
-    concurrency: 3,
+    concurrency: 1, // CRITICAL: prevent race conditions in autoSchedulePost
   }
 );
 

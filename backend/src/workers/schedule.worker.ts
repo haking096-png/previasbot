@@ -28,111 +28,155 @@ export const scheduleWorker = new Worker(
         return { status: 'no_schedules' };
       }
 
-      const readyMedia = await prisma.mediaItem.findMany({
-        where: {
-          status: 'READY',
-          processed: true,
-          preview: {
-            approved: true,
-          },
-        },
-        include: {
-          preview: true,
-          posts: {
-            where: {
-              status: {
-                in: ['SCHEDULED', 'PUBLISHED'],
-              },
-            },
-          },
-        },
-        orderBy: { order: 'asc' },
-      });
-
-      const unscheduledMedia = readyMedia.filter((media) => media.posts.length === 0);
-
-      if (unscheduledMedia.length === 0) {
-        logger.info('No unscheduled media available');
-        return { status: 'no_unscheduled_media' };
-      }
-
-      // Get all enabled channels (or use default if none configured)
+      // Get all enabled channels
       const channels = await prisma.channel.findMany({
         where: { enabled: true },
       });
 
       const now = new Date();
-      const today = now.toISOString().split('T')[0];
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       let scheduled = 0;
 
-      for (const media of unscheduledMedia) {
-        let nextSchedule: Date | null = null;
+      // Process each channel independently — NEVER process without a channel
+      if (channels.length === 0) {
+        logger.info('No enabled channels found');
+        return { status: 'no_channels' };
+      }
 
-        for (const schedule of schedules) {
-          const [hours, minutes] = schedule.time.split(':').map(Number);
-          const scheduledTime = new Date(today);
-          scheduledTime.setHours(hours, minutes, 0, 0);
+      for (const channel of channels) {
+        const channelId = channel.id;
 
-          if (scheduledTime > now) {
-            const existingPost = await prisma.post.findFirst({
+        // Get channel-specific schedules only
+        const channelSchedules = schedules.filter(s => s.channelId === channelId);
+
+        if (channelSchedules.length === 0) continue;
+
+        // Find unscheduled media for this channel — ALWAYS filter by channelId
+        const mediaWhere: any = {
+          status: 'READY',
+          processed: true,
+          preview: { approved: true },
+          channelId: channelId,
+        };
+
+        const readyMedia = await prisma.mediaItem.findMany({
+          where: mediaWhere,
+          include: {
+            preview: true,
+            posts: {
               where: {
-                scheduledFor: scheduledTime,
-                status: {
-                  in: ['SCHEDULED', 'PUBLISHING'],
+                status: { in: ['SCHEDULED', 'PUBLISHED', 'PUBLISHING'] },
+                channelId: channelId,
+              },
+            },
+          },
+          orderBy: { order: 'asc' },
+        });
+
+        const unscheduledMedia = readyMedia.filter((media) => media.posts.length === 0);
+
+        if (unscheduledMedia.length === 0) continue;
+
+        for (const media of unscheduledMedia) {
+          let nextSchedule: Date | null = null;
+
+          // Try today and tomorrow to find an open slot
+          for (let daysAhead = 0; daysAhead < 2; daysAhead++) {
+            for (const schedule of channelSchedules) {
+              const [hours, minutes] = schedule.time.split(':').map(Number);
+              const candidateDate = new Date(today.getTime());
+              candidateDate.setDate(candidateDate.getDate() + daysAhead);
+              candidateDate.setHours(hours, minutes, 0, 0);
+
+              // Skip if in the past (with 1 minute buffer)
+              if (candidateDate.getTime() <= now.getTime() + 60000) continue;
+
+              // Check if this slot is already taken FOR THIS CHANNEL
+              // Use a time window of ±30 seconds to prevent near-duplicate scheduling
+              const slotStart = new Date(candidateDate.getTime() - 30000);
+              const slotEnd = new Date(candidateDate.getTime() + 30000);
+
+              const existingPost = await prisma.post.findFirst({
+                where: {
+                  scheduledFor: {
+                    gte: slotStart,
+                    lte: slotEnd,
+                  },
+                  channelId: channelId,
+                  status: { in: ['SCHEDULED', 'PUBLISHING', 'PUBLISHED'] },
                 },
+              });
+
+              if (!existingPost) {
+                nextSchedule = candidateDate;
+                break;
+              }
+            }
+            if (nextSchedule) break;
+          }
+
+          if (!nextSchedule) {
+            logger.info('No available slot found for media', { mediaItemId: media.id, channelId });
+            continue;
+          }
+
+          // Double-check with a transaction to prevent race conditions
+          const post = await prisma.$transaction(async (tx) => {
+            // Re-verify slot is still free inside transaction
+            const slotStart = new Date(nextSchedule!.getTime() - 30000);
+            const slotEnd = new Date(nextSchedule!.getTime() + 30000);
+
+            const conflict = await tx.post.findFirst({
+              where: {
+                scheduledFor: {
+                  gte: slotStart,
+                  lte: slotEnd,
+                },
+                channelId: channelId,
+                status: { in: ['SCHEDULED', 'PUBLISHING', 'PUBLISHED'] },
               },
             });
 
-            if (!existingPost) {
-              nextSchedule = scheduledTime;
-              break;
+            if (conflict) {
+              return null; // Slot was taken between check and create
             }
-          }
-        }
 
-        if (!nextSchedule) {
-          const tomorrow = new Date(today);
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          const firstSchedule = schedules[0];
-          const [hours, minutes] = firstSchedule.time.split(':').map(Number);
-          tomorrow.setHours(hours, minutes, 0, 0);
-          nextSchedule = tomorrow;
-        }
-
-        // Schedule a post for each enabled channel (or one post with no channel if none configured)
-        if (channels.length > 0) {
-          for (const channel of channels) {
-            const post = await prisma.post.create({
+            return tx.post.create({
               data: {
                 mediaItemId: media.id,
                 previewId: media.preview!.id,
-                channelId: channel.id,
-                scheduledFor: nextSchedule,
+                channelId: channelId,
+                scheduledFor: nextSchedule!,
                 status: 'SCHEDULED',
               },
             });
-
-            const delay = nextSchedule.getTime() - Date.now();
-            await publishQueue.add('publish-post', { postId: post.id }, { delay: Math.max(0, delay) });
-            scheduled++;
-            logger.info('Post scheduled for channel', { postId: post.id, channelName: channel.name, scheduledFor: nextSchedule });
-          }
-        } else {
-          // Fallback: no channels configured, use default bot from .env
-          const post = await prisma.post.create({
-            data: {
-              mediaItemId: media.id,
-              previewId: media.preview!.id,
-              scheduledFor: nextSchedule,
-              status: 'SCHEDULED',
-            },
           });
 
+          if (!post) {
+            logger.info('Slot conflict detected, skipping', { mediaItemId: media.id, channelId });
+            continue;
+          }
+
           const delay = nextSchedule.getTime() - Date.now();
-          await publishQueue.add('publish-post', { postId: post.id }, { delay: Math.max(0, delay) });
+          await publishQueue.add(
+            'publish-post',
+            { postId: post.id },
+            {
+              delay: Math.max(0, delay),
+              jobId: `publish-${post.id}`, // Unique job ID prevents duplicate queue entries
+            }
+          );
           scheduled++;
-          logger.info('Post scheduled (default channel)', { postId: post.id, scheduledFor: nextSchedule });
+          logger.info('Post scheduled for channel', {
+            postId: post.id,
+            channelName: channel.name,
+            scheduledFor: nextSchedule,
+          });
         }
+      }
+
+      if (scheduled === 0) {
+        logger.info('No unscheduled media available');
       }
 
       await prisma.jobLog.create({
@@ -164,7 +208,10 @@ export const scheduleWorker = new Worker(
       throw error;
     }
   },
-  { connection }
+  {
+    connection,
+    concurrency: 1, // CRITICAL: only 1 concurrent schedule worker to prevent race conditions
+  }
 );
 
 scheduleWorker.on('completed', (job) => {

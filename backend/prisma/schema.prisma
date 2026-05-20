@@ -28,24 +28,31 @@ model Schedule {
   id        String   @id @default(cuid())
   time      String
   enabled   Boolean  @default(true)
+  channelId String?
+  channel   Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   posts     Post[]
 }
 
 model MediaItem {
-  id            String         @id @default(cuid())
-  filename      String         @unique
-  originalName  String
-  filePath      String
-  order         Int
-  status        MediaStatus    @default(PENDING)
-  processed     Boolean        @default(false)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  analysis      MediaAnalysis?
-  preview       Preview?
-  posts         Post[]
+  id                String         @id @default(cuid())
+  filename          String         @unique
+  originalName      String
+  filePath          String
+  telegramFileId    String?
+  telegramMessageId String?
+  mediaType         String         @default("IMAGE")
+  order             Int
+  status            MediaStatus    @default(PENDING)
+  processed         Boolean        @default(false)
+  channelId         String?
+  channel           Channel?       @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  analysis          MediaAnalysis?
+  preview           Preview?
+  posts             Post[]
 }
 
 model MediaAnalysis {
@@ -108,20 +115,43 @@ model Post {
 }
 
 model Channel {
-  id                   String   @id @default(cuid())
+  id                   String               @id @default(cuid())
   name                 String
   botToken             String
   chatId               String
   ctaLink              String
-  modelName            String?
-  modelProfession      String?
-  modelCharacteristics String?
-  modelPersonality     String?
-  copyExamples         String?
-  enabled              Boolean  @default(true)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  mediaStorageChatId   String?
+  ctaPrompt            String?              @db.Text
+  enquetePrompt        String?              @db.Text
+  previewPrompt        String?              @db.Text
+  enabled              Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
   posts                Post[]
+  mediaItems           MediaItem[]
+  schedules            Schedule[]
+  ctaPresenteSchedules CtaPresenteSchedule[]
+  enqueteSchedules     EnqueteSchedule[]
+}
+
+model CtaPresenteSchedule {
+  id        String   @id @default(cuid())
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  time      String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EnqueteSchedule {
+  id        String   @id @default(cuid())
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  time      String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model JobLog {

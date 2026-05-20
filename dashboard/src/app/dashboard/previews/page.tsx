@@ -1,64 +1,84 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { previewApi } from '@/lib/api';
-import { Preview, MediaItem } from '@/types';
+import { previewApi, channelApi, postApi } from '@/lib/api';
+import { Preview, MediaItem, Channel } from '@/types';
+import { useChannelStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 import TelegramPreview from '@/components/TelegramPreview';
 
 interface PreviewWithMedia extends Preview {
   mediaItem: MediaItem;
+  posts?: Array<{ id: string; channelId?: string; channel?: Channel; status: string; scheduledFor?: string }>;
 }
 
 export default function PreviewsPage() {
   const [previews, setPreviews] = useState<PreviewWithMedia[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPreview, setSelectedPreview] = useState<PreviewWithMedia | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<Partial<Preview>>({});
+  const [scheduleModal, setScheduleModal] = useState<PreviewWithMedia | null>(null);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleChannelId, setScheduleChannelId] = useState<string>('');
+  const { selectedChannelId } = useChannelStore();
 
   useEffect(() => {
     loadPreviews();
-  }, []);
+    loadChannels();
+  }, [selectedChannelId]);
 
   const loadPreviews = async () => {
     try {
-      const response = await previewApi.getAll();
+      const response = await previewApi.getAll(selectedChannelId || undefined);
       setPreviews(response.data);
     } catch (error: any) {
-      toast.error('Erro ao carregar prévias');
+      if (error.response?.status !== 401) {
+        console.warn('Failed to load previews, retrying...');
+        setTimeout(loadPreviews, 3000);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadChannels = async () => {
+    try {
+      const response = await channelApi.getAll();
+      setChannels(response.data.filter((c: Channel) => c.enabled));
+    } catch (error) {
+      console.warn('Failed to load channels');
     }
   };
 
   const handleApprove = async (id: string) => {
     try {
       await previewApi.approve(id);
-      toast.success('Prévia aprovada!');
+      toast.success('Previa aprovada!');
       loadPreviews();
     } catch (error: any) {
-      toast.error('Erro ao aprovar prévia');
+      toast.error('Erro ao aprovar previa');
     }
   };
 
   const handleReject = async (id: string) => {
     try {
       await previewApi.reject(id);
-      toast.success('Prévia rejeitada!');
+      toast.success('Previa rejeitada!');
       loadPreviews();
     } catch (error: any) {
-      toast.error('Erro ao rejeitar prévia');
+      toast.error('Erro ao rejeitar previa');
     }
   };
 
   const handleRegenerate = async (id: string) => {
     try {
       await previewApi.regenerate(id);
-      toast.success('Regeneração iniciada!');
+      toast.success('Regeneracao iniciada!');
       setTimeout(loadPreviews, 3000);
     } catch (error: any) {
-      toast.error('Erro ao regenerar prévia');
+      toast.error('Erro ao regenerar previa');
     }
   };
 
@@ -80,228 +100,258 @@ export default function PreviewsPage() {
 
     try {
       await previewApi.update(selectedPreview.id, editData);
-      toast.success('Prévia atualizada!');
+      toast.success('Previa atualizada!');
       setEditMode(false);
       setSelectedPreview(null);
       loadPreviews();
     } catch (error: any) {
-      toast.error('Erro ao atualizar prévia');
+      toast.error('Erro ao atualizar previa');
     }
+  };
+
+  const handleOpenSchedule = (preview: PreviewWithMedia) => {
+    setScheduleModal(preview);
+    setScheduleChannelId(selectedChannelId || '');
+    setScheduleDate('');
+  };
+
+  const handleSchedulePost = async () => {
+    if (!scheduleModal || !scheduleDate || !scheduleChannelId) {
+      toast.error('Preencha a data e selecione um canal');
+      return;
+    }
+
+    try {
+      await postApi.schedule(
+        scheduleModal.mediaItem.id,
+        scheduleModal.id,
+        scheduleDate,
+        scheduleChannelId
+      );
+      const channelName = channels.find(c => c.id === scheduleChannelId)?.name || '';
+      toast.success(`Agendado para ${channelName}!`);
+      setScheduleModal(null);
+      loadPreviews();
+    } catch (error: any) {
+      toast.error('Erro ao agendar publicacao');
+    }
+  };
+
+  const getPostChannelName = (preview: PreviewWithMedia): string | null => {
+    if (preview.posts && preview.posts.length > 0) {
+      const lastPost = preview.posts[preview.posts.length - 1];
+      if (lastPost.channel) return lastPost.channel.name;
+      const ch = channels.find(c => c.id === lastPost.channelId);
+      return ch?.name || null;
+    }
+    return null;
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-dark-bg">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-accent-blue border-t-transparent"></div>
+      <div className="flex items-center justify-center h-screen bg-[#0a0e1a]">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#3b82f6] border-t-transparent"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-dark-bg p-8">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-white mb-2">Gerenciar Prévias</h1>
-        <p className="text-gray-400 text-lg">
-          Total: {previews.length} prévias | Pendentes: {previews.filter(p => !p.approved).length}
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-[#f1f5f9]">Gerenciar Previas</h1>
+        <p className="text-sm text-[#64748b] mt-1">
+          Total: {previews.length} previas | Pendentes: {previews.filter(p => !p.approved).length}
         </p>
       </div>
 
       {previews.length === 0 ? (
-        <div className="bg-dark-card border border-dark-border rounded-2xl p-12 text-center">
-          <svg
-            className="mx-auto h-16 w-16 text-gray-600 mb-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-          <h3 className="text-xl font-medium text-white mb-2">Nenhuma prévia</h3>
-          <p className="text-gray-400">
-            As prévias serão geradas automaticamente após o upload de imagens
-          </p>
+        <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-8 text-center">
+          <h3 className="text-sm font-medium text-[#f1f5f9] mb-1">Nenhuma previa</h3>
+          <p className="text-xs text-[#64748b]">As previas serao geradas automaticamente apos o upload de imagens</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {previews.map((preview) => (
-            <div key={preview.id} className="bg-dark-card border border-dark-border rounded-2xl overflow-hidden">
-              <div className="p-6">
-                {/* Header Info */}
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">
-                      {preview.mediaItem?.originalName || 'Sem nome'}
-                    </h3>
-                    <p className="text-sm text-gray-400">Ordem: {preview.mediaItem?.order || 0}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {previews.map((preview) => {
+            const channelName = getPostChannelName(preview);
+            return (
+              <div key={preview.id} className="bg-[#111827] border border-[#1e293b] rounded-lg overflow-hidden hover:border-[#334155] transition-colors">
+                <div className="p-5">
+                  {/* Header Info */}
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-sm font-medium text-[#f1f5f9]">
+                        {preview.mediaItem?.originalName || 'Sem nome'}
+                      </h3>
+                      <p className="text-xs text-[#64748b]">Ordem: {preview.mediaItem?.order || 0}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {channelName && (
+                        <span className="px-2 py-1 text-[10px] font-medium rounded-md bg-blue-500/10 text-blue-400">
+                          {channelName}
+                        </span>
+                      )}
+                      {preview.approved ? (
+                        <span className="px-2 py-1 text-[10px] font-medium rounded-md bg-emerald-500/10 text-emerald-400">
+                          Aprovada
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-[10px] font-medium rounded-md bg-amber-500/10 text-amber-400">
+                          Pendente
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {preview.approved ? (
-                      <span className="px-3 py-1.5 text-xs font-semibold rounded-full bg-green-500/10 text-green-400 border border-green-500/30">
-                        ✓ Aprovada
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1.5 text-xs font-semibold rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/30">
-                        ⏳ Pendente
-                      </span>
+
+                  {/* Telegram Preview */}
+                  <div className="mb-4">
+                    <TelegramPreview
+                      imageUrl={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/media/${preview.mediaItem?.id || ''}/image`}
+                      headline={preview.headline}
+                      body={preview.body}
+                      preCta={preview.preCta}
+                      cta={preview.cta}
+                      buttonText={preview.buttonText}
+                      buttonUrl={preview.buttonUrl}
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {!preview.approved && (
+                      <>
+                        <button
+                          onClick={() => handleApprove(preview.id)}
+                          className="px-3 py-2 text-xs font-medium text-emerald-400 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/5 transition-colors"
+                        >
+                          Aprovar
+                        </button>
+                        <button
+                          onClick={() => handleReject(preview.id)}
+                          className="px-3 py-2 text-xs font-medium text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/5 transition-colors"
+                        >
+                          Rejeitar
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => handleEdit(preview)}
+                      className="px-3 py-2 text-xs font-medium text-[#64748b] border border-[#1e293b] rounded-lg hover:border-[#3b82f6] hover:text-[#3b82f6] transition-colors"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => handleRegenerate(preview.id)}
+                      className="px-3 py-2 text-xs font-medium text-[#64748b] border border-[#1e293b] rounded-lg hover:border-[#3b82f6] hover:text-[#3b82f6] transition-colors"
+                    >
+                      Regenerar
+                    </button>
+                    {preview.approved && (
+                      <button
+                        onClick={() => handleOpenSchedule(preview)}
+                        className="col-span-2 px-3 py-2 text-xs font-medium text-white bg-[#3b82f6] rounded-lg hover:bg-[#2563eb] transition-colors"
+                      >
+                        Agendar para Canal
+                      </button>
                     )}
                   </div>
                 </div>
-
-                {/* Telegram Preview */}
-                <div className="mb-6">
-                  <TelegramPreview
-                    imageUrl={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${preview.mediaItem?.filePath || ''}`}
-                    headline={preview.headline}
-                    body={preview.body}
-                    preCta={preview.preCta}
-                    cta={preview.cta}
-                    buttonText={preview.buttonText}
-                    buttonUrl={preview.buttonUrl}
-                  />
-                </div>
-
-                {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-3">
-                  {!preview.approved && (
-                    <>
-                      <button
-                        onClick={() => handleApprove(preview.id)}
-                        className="px-4 py-3 bg-green-500/10 border border-green-500/30 text-green-400 rounded-xl font-medium hover:bg-green-500/20 transition-all duration-200"
-                      >
-                        ✓ Aprovar
-                      </button>
-                      <button
-                        onClick={() => handleReject(preview.id)}
-                        className="px-4 py-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl font-medium hover:bg-red-500/20 transition-all duration-200"
-                      >
-                        ✗ Rejeitar
-                      </button>
-                    </>
-                  )}
-                  <button
-                    onClick={() => handleEdit(preview)}
-                    className="px-4 py-3 bg-dark-bg border border-accent-blue text-accent-blue rounded-xl font-medium hover:bg-accent-blue/10 transition-all duration-200"
-                  >
-                    ✎ Editar
-                  </button>
-                  <button
-                    onClick={() => handleRegenerate(preview.id)}
-                    className="px-4 py-3 bg-dark-bg border border-accent-cyan text-accent-cyan rounded-xl font-medium hover:bg-accent-cyan/10 transition-all duration-200"
-                  >
-                    ↻ Regenerar
-                  </button>
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Edit Modal */}
       {editMode && selectedPreview && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setEditMode(false)}>
-          <div className="bg-dark-card border border-dark-border rounded-2xl max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-2xl font-bold text-white mb-6">Editar Prévia</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={() => setEditMode(false)}>
+          <div className="bg-[#111827] border border-[#1e293b] rounded-lg max-w-2xl w-full p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-[#f1f5f9] mb-4">Editar Previa</h3>
+            <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Headline</label>
-                <input
-                  type="text"
-                  value={editData.headline || ''}
-                  onChange={(e) => setEditData({ ...editData, headline: e.target.value })}
-                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none transition-colors"
-                />
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">Headline</label>
+                <input type="text" value={editData.headline || ''} onChange={(e) => setEditData({ ...editData, headline: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#3b82f6] focus:outline-none text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Corpo</label>
-                <textarea
-                  value={editData.body || ''}
-                  onChange={(e) => setEditData({ ...editData, body: e.target.value })}
-                  rows={4}
-                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none transition-colors"
-                />
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">Corpo</label>
+                <textarea value={editData.body || ''} onChange={(e) => setEditData({ ...editData, body: e.target.value })} rows={4} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#3b82f6] focus:outline-none text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Pré-CTA</label>
-                <input
-                  type="text"
-                  value={editData.preCta || ''}
-                  onChange={(e) => setEditData({ ...editData, preCta: e.target.value })}
-                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none transition-colors"
-                />
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">Pre-CTA</label>
+                <input type="text" value={editData.preCta || ''} onChange={(e) => setEditData({ ...editData, preCta: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#3b82f6] focus:outline-none text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">CTA</label>
-                <textarea
-                  value={editData.cta || ''}
-                  onChange={(e) => setEditData({ ...editData, cta: e.target.value })}
-                  rows={3}
-                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none transition-colors"
-                />
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">CTA</label>
+                <textarea value={editData.cta || ''} onChange={(e) => setEditData({ ...editData, cta: e.target.value })} rows={3} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#3b82f6] focus:outline-none text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Texto do Botão</label>
-                <input
-                  type="text"
-                  value={editData.buttonText || ''}
-                  onChange={(e) => setEditData({ ...editData, buttonText: e.target.value })}
-                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">URL do Botão</label>
-                <input
-                  type="text"
-                  value={editData.buttonUrl || ''}
-                  onChange={(e) => setEditData({ ...editData, buttonUrl: e.target.value })}
-                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-accent-blue focus:outline-none transition-colors"
-                />
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">URL do Botao</label>
+                <input type="text" value={editData.buttonUrl || ''} onChange={(e) => setEditData({ ...editData, buttonUrl: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#3b82f6] focus:outline-none text-sm" />
               </div>
             </div>
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={handleSaveEdit}
-                className="flex-1 bg-gradient-to-r from-accent-blue to-accent-cyan text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg hover:shadow-accent-blue/50 transition-all duration-300"
-              >
-                Salvar
-              </button>
-              <button
-                onClick={() => setEditMode(false)}
-                className="flex-1 bg-dark-bg border border-dark-border text-white px-6 py-3 rounded-xl font-semibold hover:bg-dark-border transition-all duration-300"
-              >
-                Cancelar
-              </button>
+            <div className="flex gap-2 mt-5">
+              <button onClick={handleSaveEdit} className="flex-1 px-4 py-2.5 bg-[#3b82f6] text-white rounded-lg text-sm font-medium hover:bg-[#2563eb] transition-colors">Salvar</button>
+              <button onClick={() => setEditMode(false)} className="flex-1 px-4 py-2.5 border border-[#1e293b] text-[#64748b] rounded-lg text-sm font-medium hover:border-[#334155] transition-colors">Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* View Modal */}
-      {selectedPreview && !editMode && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedPreview(null)}>
-          <div className="max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => setSelectedPreview(null)}
-                className="bg-dark-card border border-dark-border text-white px-4 py-2 rounded-xl hover:bg-dark-border transition-colors"
-              >
-                Fechar
-              </button>
+      {/* Schedule Modal */}
+      {scheduleModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={() => setScheduleModal(null)}>
+          <div className="bg-[#111827] border border-[#1e293b] rounded-lg max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-[#f1f5f9] mb-1">Agendar Publicacao</h3>
+            <p className="text-xs text-[#64748b] mb-4">Escolha o canal e a data/hora para publicar</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">Canal de Destino</label>
+                <div className="space-y-1.5">
+                  {channels.map((channel) => (
+                    <button
+                      key={channel.id}
+                      onClick={() => setScheduleChannelId(channel.id)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-colors ${
+                        scheduleChannelId === channel.id
+                          ? 'border-[#3b82f6] bg-blue-500/5'
+                          : 'border-[#1e293b] hover:border-[#334155]'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold ${
+                        scheduleChannelId === channel.id
+                          ? 'bg-[#3b82f6] text-white'
+                          : 'bg-[#1e293b] text-[#64748b]'
+                      }`}>
+                        {channel.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className={`text-sm font-medium ${scheduleChannelId === channel.id ? 'text-[#f1f5f9]' : 'text-[#64748b]'}`}>
+                        {channel.name}
+                      </span>
+                      {scheduleChannelId === channel.id && (
+                        <svg className="w-4 h-4 text-[#3b82f6] ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#64748b] mb-1.5">Data e Hora</label>
+                <input
+                  type="datetime-local"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#3b82f6] focus:outline-none text-sm"
+                />
+              </div>
             </div>
-            <TelegramPreview
-              imageUrl={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${selectedPreview.mediaItem?.filePath || ''}`}
-              headline={selectedPreview.headline}
-              body={selectedPreview.body}
-              preCta={selectedPreview.preCta}
-              cta={selectedPreview.cta}
-              buttonText={selectedPreview.buttonText}
-              buttonUrl={selectedPreview.buttonUrl}
-            />
+
+            <div className="flex gap-2 mt-5">
+              <button onClick={handleSchedulePost} className="flex-1 px-4 py-2.5 bg-[#3b82f6] text-white rounded-lg text-sm font-medium hover:bg-[#2563eb] transition-colors">Agendar</button>
+              <button onClick={() => setScheduleModal(null)} className="flex-1 px-4 py-2.5 border border-[#1e293b] text-[#64748b] rounded-lg text-sm font-medium hover:border-[#334155] transition-colors">Cancelar</button>
+            </div>
           </div>
         </div>
       )}

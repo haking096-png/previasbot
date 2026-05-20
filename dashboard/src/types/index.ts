@@ -2,6 +2,9 @@ export interface MediaItem {
   id: string;
   filename: string;
   filePath: string;
+  telegramFileId?: string;
+  telegramMessageId?: string;
+  mediaType: string;
   originalName: string;
   order: number;
   status: string;
@@ -47,6 +50,8 @@ export interface Post {
   status: string;
   telegramMessageId?: string;
   error?: string;
+  channelId?: string;
+  channel?: Channel;
   mediaItem: MediaItem;
   preview: Preview;
 }
@@ -55,6 +60,8 @@ export interface Schedule {
   id: string;
   time: string;
   enabled: boolean;
+  channelId?: string;
+  channel?: Channel;
 }
 
 export interface Settings {
@@ -70,11 +77,10 @@ export interface Channel {
   botToken: string;
   chatId: string;
   ctaLink: string;
-  modelName?: string;
-  modelProfession?: string;
-  modelCharacteristics?: string;
-  modelPersonality?: string;
-  copyExamples?: string;
+  mediaStorageChatId?: string;
+  ctaPrompt?: string;
+  enquetePrompt?: string;
+  previewPrompt?: string;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;

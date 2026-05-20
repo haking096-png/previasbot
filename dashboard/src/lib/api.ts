@@ -7,36 +7,29 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000,
 });
 
-// Interceptor para adicionar token em todas as requisições
-api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const authStorage = localStorage.getItem('auth-storage');
-    if (authStorage) {
-      try {
-        const { state } = JSON.parse(authStorage);
-        if (state?.token) {
-          config.headers.Authorization = `Bearer ${state.token}`;
-        }
-      } catch (e) {
-        console.error('Error parsing auth storage:', e);
-      }
-    }
-  }
-  return config;
-});
-
-// Interceptor para tratar erros de autenticação
+// Interceptor para retry em erros de rede
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth-storage');
-        window.location.href = '/login';
+  async (error) => {
+    const config = error.config;
+
+    // Retry on network errors or 5xx (backend still starting)
+    if (
+      !config._retryCount &&
+      (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED' ||
+       (error.response?.status >= 500 && error.response?.status < 600))
+    ) {
+      config._retryCount = config._retryCount || 0;
+      if (config._retryCount < 3) {
+        config._retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 1500 * config._retryCount));
+        return api(config);
       }
     }
+
     return Promise.reject(error);
   }
 );
@@ -56,7 +49,7 @@ export const settingsApi = {
 };
 
 export const mediaApi = {
-  getAll: () => api.get('/api/media'),
+  getAll: (channelId?: string) => api.get('/api/media', { params: channelId ? { channelId } : {} }),
   getById: (id: string) => api.get(`/api/media/${id}`),
   upload: (formData: FormData) =>
     api.post('/api/media/upload', formData, {
@@ -69,7 +62,7 @@ export const mediaApi = {
 };
 
 export const previewApi = {
-  getAll: () => api.get('/api/previews'),
+  getAll: (channelId?: string) => api.get('/api/previews', { params: channelId ? { channelId } : {} }),
   getById: (id: string) => api.get(`/api/previews/${id}`),
   update: (id: string, data: any) => api.put(`/api/previews/${id}`, data),
   approve: (id: string) => api.post(`/api/previews/${id}/approve`),
@@ -78,19 +71,19 @@ export const previewApi = {
 };
 
 export const scheduleApi = {
-  getAll: () => api.get('/api/schedules'),
-  create: (time: string, enabled: boolean) =>
-    api.post('/api/schedules', { time, enabled }),
+  getAll: (channelId?: string) => api.get('/api/schedules', { params: channelId ? { channelId } : {} }),
+  create: (time: string, enabled: boolean, channelId?: string) =>
+    api.post('/api/schedules', { time, enabled, channelId }),
   update: (id: string, time: string, enabled: boolean) =>
     api.put(`/api/schedules/${id}`, { time, enabled }),
   delete: (id: string) => api.delete(`/api/schedules/${id}`),
 };
 
 export const postApi = {
-  getAll: () => api.get('/api/posts'),
+  getAll: (channelId?: string) => api.get('/api/posts', { params: channelId ? { channelId } : {} }),
   getById: (id: string) => api.get(`/api/posts/${id}`),
-  schedule: (mediaItemId: string, previewId: string, scheduledFor: string) =>
-    api.post('/api/posts/schedule', { mediaItemId, previewId, scheduledFor }),
+  schedule: (mediaItemId: string, previewId: string, scheduledFor: string, channelId?: string) =>
+    api.post('/api/posts/schedule', { mediaItemId, previewId, scheduledFor, channelId }),
   publishNow: (id: string) => api.post(`/api/posts/${id}/publish-now`),
   cancel: (id: string) => api.post(`/api/posts/${id}/cancel`),
   reschedule: (id: string, scheduledFor: string) =>
@@ -104,6 +97,18 @@ export const channelApi = {
   update: (id: string, data: any) => api.put(`/api/channels/${id}`, data),
   delete: (id: string) => api.delete(`/api/channels/${id}`),
   testConnection: (id: string) => api.post(`/api/channels/${id}/test`),
+};
+
+export const ctaPresenteScheduleApi = {
+  getAll: (channelId: string) => api.get('/api/cta-presente-schedules', { params: { channelId } }),
+  create: (time: string, channelId: string) => api.post('/api/cta-presente-schedules', { time, enabled: true, channelId }),
+  delete: (id: string) => api.delete(`/api/cta-presente-schedules/${id}`),
+};
+
+export const enqueteScheduleApi = {
+  getAll: (channelId: string) => api.get('/api/enquete-schedules', { params: { channelId } }),
+  create: (time: string, channelId: string) => api.post('/api/enquete-schedules', { time, enabled: true, channelId }),
+  delete: (id: string) => api.delete(`/api/enquete-schedules/${id}`),
 };
 
 export default api;

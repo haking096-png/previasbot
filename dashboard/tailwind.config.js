@@ -7,41 +7,47 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ['Satoshi', 'sans-serif'],
+      },
       colors: {
-        primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
+        surface: {
+          base: '#0a0e1a',
+          raised: '#0f1629',
+          card: '#141d35',
+          glass: 'rgba(20, 29, 53, 0.6)',
         },
-        telegram: {
-          50: '#e3f2fd',
-          100: '#bbdefb',
-          200: '#90caf9',
-          300: '#64b5f6',
-          400: '#42a5f5',
-          500: '#2196f3',
-          600: '#1e88e5',
-          700: '#1976d2',
-          800: '#1565c0',
-          900: '#0d47a1',
-        },
-        dark: {
-          bg: '#0a0e27',
-          card: '#141b3d',
-          border: '#1e2749',
+        border: {
+          DEFAULT: 'rgba(56, 97, 150, 0.12)',
+          hover: 'rgba(56, 97, 150, 0.25)',
+          glow: 'rgba(6, 182, 212, 0.3)',
         },
         accent: {
-          blue: '#3b82f6',
           cyan: '#06b6d4',
-          purple: '#8b5cf6',
-        }
+          neon: '#22d3ee',
+          blue: '#3b82f6',
+          indigo: '#6366f1',
+          DEFAULT: '#3b82f6',
+          hover: '#2563eb',
+          muted: 'rgba(59, 130, 246, 0.1)',
+        },
+        text: {
+          primary: '#f0f4f8',
+          secondary: '#7b8fa8',
+          muted: '#4a5e78',
+        },
+      },
+      borderRadius: {
+        sm: '8px',
+        md: '12px',
+        lg: '16px',
+        xl: '20px',
+      },
+      boxShadow: {
+        card: '0 4px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(56, 97, 150, 0.08)',
+        elevated: '0 8px 40px -8px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(6, 182, 212, 0.15)',
+        glow: '0 0 24px -4px rgba(6, 182, 212, 0.4)',
+        'glow-sm': '0 0 12px -2px rgba(6, 182, 212, 0.3)',
       },
     },
   },

@@ -6,9 +6,23 @@ import { generateQueue } from '../utils/queue';
 export class PreviewController {
   async getAll(req: Request, res: Response) {
     try {
+      const { channelId } = req.query;
+
+      const where: any = {};
+      if (channelId) {
+        where.mediaItem = { channelId: channelId as string };
+      }
+
       const previews = await prisma.preview.findMany({
+        where,
         include: {
           mediaItem: true,
+          posts: {
+            include: {
+              channel: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -113,21 +127,26 @@ export class PreviewController {
   async regenerate(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const { channelId } = req.body || {};
 
       const preview = await prisma.preview.findUnique({
         where: { id },
-        include: { mediaItem: true },
+        include: { mediaItem: true, posts: { orderBy: { createdAt: 'desc' }, take: 1 } },
       });
 
       if (!preview) {
         return res.status(404).json({ error: 'Preview not found' });
       }
 
+      // Use provided channelId, or get from the most recent post
+      const effectiveChannelId = channelId || preview.posts?.[0]?.channelId || undefined;
+
       await generateQueue.add('generate-preview', {
         mediaItemId: preview.mediaItemId,
+        channelId: effectiveChannelId,
       });
 
-      logger.info('Preview regeneration triggered', { id });
+      logger.info('Preview regeneration triggered', { id, channelId: effectiveChannelId });
       res.json({ message: 'Preview regeneration triggered' });
     } catch (error: any) {
       logger.error('Regenerate preview error', { error: error.message });
