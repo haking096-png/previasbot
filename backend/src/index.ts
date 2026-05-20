@@ -116,6 +116,13 @@ app.use(errorHandler);
 app.listen(appConfig.port, () => {
   logger.info(`Backend server running on port ${appConfig.port}`);
   logger.info(`Environment: ${appConfig.nodeEnv}`);
+
+  // Start workers in the same process
+  import('./workers/index').then(() => {
+    logger.info('Workers started in backend process');
+  }).catch((err) => {
+    logger.error('Failed to start workers', { error: err.message });
+  });
 });
 
 export default app;

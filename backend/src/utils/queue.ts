@@ -7,6 +7,7 @@ const connection = new IORedis({
   host: redisConfig.host,
   port: redisConfig.port,
   password: redisConfig.password,
+  username: redisConfig.username,
   maxRetriesPerRequest: null,
 });
 

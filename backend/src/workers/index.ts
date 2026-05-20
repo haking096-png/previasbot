@@ -1,6 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
 console.log('[WORKER] Starting workers...');
 console.log('[WORKER] REDIS_HOST:', process.env.REDIS_HOST);
 console.log('[WORKER] REDIS_PORT:', process.env.REDIS_PORT);
