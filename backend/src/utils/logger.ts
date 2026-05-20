@@ -46,6 +46,12 @@ if (process.env.NODE_ENV !== 'production') {
       format: consoleFormat,
     })
   );
+} else {
+  logger.add(
+    new winston.transports.Console({
+      format: logFormat,
+    })
+  );
 }
 
 export default logger;
