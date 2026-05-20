@@ -3,6 +3,48 @@ import { connection, publishQueue } from '../utils/queue';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 
+const TIMEZONE = process.env.TZ || 'America/Sao_Paulo';
+
+function getNowInTimezone(): Date {
+  return new Date();
+}
+
+function getTodayInTimezone(): Date {
+  const now = new Date();
+  // Get today's date in the configured timezone
+  const dateStr = now.toLocaleDateString('en-CA', { timeZone: TIMEZONE }); // YYYY-MM-DD format
+  const [year, month, day] = dateStr.split('-').map(Number);
+  // Create a date at midnight in the timezone
+  const tzOffset = getTimezoneOffset(now);
+  const today = new Date(year, month - 1, day);
+  today.setMinutes(today.getMinutes() + tzOffset);
+  return today;
+}
+
+function getTimezoneOffset(date: Date): number {
+  // Get the offset in minutes between UTC and the target timezone
+  const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
+  const tzStr = date.toLocaleString('en-US', { timeZone: TIMEZONE });
+  const utcDate = new Date(utcStr);
+  const tzDate = new Date(tzStr);
+  return (utcDate.getTime() - tzDate.getTime()) / 60000;
+}
+
+function createScheduleDate(baseDate: Date, daysAhead: number, hours: number, minutes: number): Date {
+  // Create a date for the given time in the configured timezone
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const [year, month, day] = dateStr.split('-').map(Number);
+
+  // Create date in local timezone
+  const targetDate = new Date(Date.UTC(year, month - 1, day + daysAhead, hours, minutes, 0, 0));
+  // Adjust for timezone offset
+  const offset = getTimezoneOffset(targetDate);
+  targetDate.setMinutes(targetDate.getMinutes() + offset);
+
+  return targetDate;
+}
+
 export const scheduleWorker = new Worker(
   'schedule',
   async (job: Job) => {
@@ -34,7 +76,7 @@ export const scheduleWorker = new Worker(
       });
 
       const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
       let scheduled = 0;
 
       // Process each channel independently — NEVER process without a channel
@@ -84,9 +126,7 @@ export const scheduleWorker = new Worker(
           for (let daysAhead = 0; daysAhead < 2; daysAhead++) {
             for (const schedule of channelSchedules) {
               const [hours, minutes] = schedule.time.split(':').map(Number);
-              const candidateDate = new Date(today.getTime());
-              candidateDate.setDate(candidateDate.getDate() + daysAhead);
-              candidateDate.setHours(hours, minutes, 0, 0);
+              const candidateDate = createScheduleDate(now, daysAhead, hours, minutes);
 
               // Skip if in the past (with 1 minute buffer)
               if (candidateDate.getTime() <= now.getTime() + 60000) continue;

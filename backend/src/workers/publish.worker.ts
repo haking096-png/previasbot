@@ -5,6 +5,26 @@ import logger from '../utils/logger';
 import telegramService from '../services/telegram.service';
 import path from 'path';
 
+const TIMEZONE = process.env.TZ || 'America/Sao_Paulo';
+
+function getTimezoneOffset(date: Date): number {
+  const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
+  const tzStr = date.toLocaleString('en-US', { timeZone: TIMEZONE });
+  const utcDate = new Date(utcStr);
+  const tzDate = new Date(tzStr);
+  return (utcDate.getTime() - tzDate.getTime()) / 60000;
+}
+
+function createScheduleDate(daysAhead: number, hours: number, minutes: number): Date {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const targetDate = new Date(Date.UTC(year, month - 1, day + daysAhead, hours, minutes, 0, 0));
+  const offset = getTimezoneOffset(targetDate);
+  targetDate.setMinutes(targetDate.getMinutes() + offset);
+  return targetDate;
+}
+
 export const publishWorker = new Worker(
   'publish',
   async (job: Job) => {
@@ -130,15 +150,12 @@ export const publishWorker = new Worker(
 
             if (scheduledPosts.length > 0) {
               const now = new Date();
-              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
               const slots: Date[] = [];
               for (let daysAhead = 0; slots.length < scheduledPosts.length + 5; daysAhead++) {
                 for (const schedule of schedules) {
                   const [hours, minutes] = schedule.time.split(':').map(Number);
-                  const candidateDate = new Date(today.getTime());
-                  candidateDate.setDate(candidateDate.getDate() + daysAhead);
-                  candidateDate.setHours(hours, minutes, 0, 0);
+                  const candidateDate = createScheduleDate(daysAhead, hours, minutes);
 
                   if (candidateDate.getTime() <= now.getTime() + 60000) continue;
 
