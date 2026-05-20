@@ -98,8 +98,25 @@ export const analyzeWorker = new Worker(
 
       const analysis = await grokService.analyzeImage(imagePath);
 
-      await prisma.mediaAnalysis.create({
-        data: {
+      await prisma.mediaAnalysis.upsert({
+        where: { mediaItemId },
+        update: {
+          scenario: analysis.scenario,
+          pose: analysis.pose,
+          clothing: analysis.clothing,
+          emotion: analysis.emotion,
+          visualStyle: analysis.visualStyle,
+          mainFocus: analysis.mainFocus,
+          colors: analysis.colors,
+          feeling: analysis.feeling,
+          description: analysis.description,
+          headline: analysis.headline,
+          copy: analysis.copy,
+          hashtags: analysis.hashtags,
+          category: analysis.category,
+          rawData: analysis.rawData,
+        },
+        create: {
           mediaItemId,
           scenario: analysis.scenario,
           pose: analysis.pose,
