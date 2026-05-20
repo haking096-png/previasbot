@@ -31,6 +31,7 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 500,
   skip: (req) => req.path.startsWith('/api/media') && req.path.includes('/image'),
+  validate: { xForwardedForHeader: false },
 });
 app.use(limiter);
 
@@ -118,4 +119,3 @@ app.listen(appConfig.port, () => {
 });
 
 export default app;
-// Railway build 1779258737
