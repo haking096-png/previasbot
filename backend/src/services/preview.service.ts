@@ -92,14 +92,14 @@ Analise as informações abaixo da imagem/vídeo e gere UMA copy de prévia ORIG
             }
           ],
           temperature: 0.85,
-          max_tokens: 700
+          max_tokens: 800
         },
         {
           headers: {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json'
           },
-          timeout: 60000
+          timeout: 120000
         }
       );
 

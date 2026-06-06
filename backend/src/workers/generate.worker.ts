@@ -142,10 +142,6 @@ export const generateWorker = new Worker(
         throw new Error(`Media item not found: ${mediaItemId}`);
       }
 
-      if (!mediaItem.analysis) {
-        throw new Error(`Media analysis not found for: ${mediaItemId}`);
-      }
-
       // ALWAYS use the channelId from the MediaItem itself, never from job data
       const channelId = mediaItem.channelId || undefined;
       logger.info('Using channelId from MediaItem', { mediaItemId, channelId });
@@ -156,24 +152,51 @@ export const generateWorker = new Worker(
       });
 
       // Convert null to undefined for GrokAnalysisResult compatibility
+      // If no analysis exists yet, create a minimal one to allow generation
       const analysisData = {
-        scenario: mediaItem.analysis.scenario ?? undefined,
-        pose: mediaItem.analysis.pose ?? undefined,
-        clothing: mediaItem.analysis.clothing ?? undefined,
-        emotion: mediaItem.analysis.emotion ?? undefined,
-        visualStyle: mediaItem.analysis.visualStyle ?? undefined,
-        mainFocus: mediaItem.analysis.mainFocus ?? undefined,
-        colors: mediaItem.analysis.colors ?? undefined,
-        feeling: mediaItem.analysis.feeling ?? undefined,
-        description: mediaItem.analysis.description ?? undefined,
-        headline: mediaItem.analysis.headline ?? undefined,
-        copy: mediaItem.analysis.copy ?? undefined,
-        hashtags: mediaItem.analysis.hashtags ?? undefined,
-        category: mediaItem.analysis.category ?? undefined,
-        rawData: mediaItem.analysis.rawData ?? undefined,
+        scenario: mediaItem.analysis?.scenario ?? undefined,
+        pose: mediaItem.analysis?.pose ?? undefined,
+        clothing: mediaItem.analysis?.clothing ?? undefined,
+        emotion: mediaItem.analysis?.emotion ?? undefined,
+        visualStyle: mediaItem.analysis?.visualStyle ?? undefined,
+        mainFocus: mediaItem.analysis?.mainFocus ?? undefined,
+        colors: mediaItem.analysis?.colors ?? undefined,
+        feeling: mediaItem.analysis?.feeling ?? undefined,
+        description: mediaItem.analysis?.description ?? (mediaItem.originalName || 'Conteúdo novo'),
+        headline: mediaItem.analysis?.headline ?? undefined,
+        copy: mediaItem.analysis?.copy ?? undefined,
+        hashtags: mediaItem.analysis?.hashtags ?? undefined,
+        category: mediaItem.analysis?.category ?? undefined,
+        rawData: mediaItem.analysis?.rawData ?? undefined,
       };
 
-      const previewContent = await previewService.generateFromAnalysis(analysisData, ctaConfig.link, channelId);
+      logger.info('Calling generateFromAnalysis', { mediaItemId, channelId });
+      let previewContent;
+      try {
+        previewContent = await previewService.generateFromAnalysis(analysisData, ctaConfig.link, channelId);
+      } catch (genError: any) {
+        logger.error('Generation failed, using fallback', { error: genError.message, mediaItemId });
+        // Use fallback if available
+        try {
+          previewContent = (previewService as any).generateFallbackPreview
+            ? (previewService as any).generateFallbackPreview(analysisData, ctaConfig.link)
+            : null;
+        } catch (fbError: any) {
+          logger.error('Fallback also failed', { error: fbError.message });
+        }
+
+        if (!previewContent) {
+          // Last resort: create minimal preview
+          previewContent = {
+            headline: 'CONTEÚDO EXCLUSIVO 🔥',
+            body: 'Conteúdo novo disponível agora no nosso canal.',
+            preCta: 'Quer conferir?',
+            cta: 'VER AGORA 🔥\nVER AGORA 🔥\nVER AGORA 🔥',
+            buttonText: '',
+            buttonUrl: ctaConfig.link,
+          };
+        }
+      }
 
       // Apply censoring to all text fields
       previewContent.headline = censorText(previewContent.headline);

@@ -95,6 +95,23 @@ async function rescheduleRemainingPosts(channelId: string) {
 }
 
 export class PostController {
+  // Delete a single post
+  async deleteOne(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const post = await prisma.post.findUnique({ where: { id } });
+      if (!post) {
+        return res.status(404).json({ error: 'Post não encontrado' });
+      }
+      await prisma.post.delete({ where: { id } });
+      logger.info('Post deleted', { id });
+      res.json({ message: 'Post excluído com sucesso', id });
+    } catch (error: any) {
+      logger.error('Delete post error', { error: error.message, id: req.params.id });
+      res.status(500).json({ error: 'Erro ao excluir post' });
+    }
+  }
+
   async getAll(req: Request, res: Response) {
     try {
       const { channelId } = req.query;

@@ -155,6 +155,7 @@ app.post('/api/posts/schedule', postController.schedule.bind(postController));
 app.post('/api/posts/:id/publish-now', postController.publishNow.bind(postController));
 app.post('/api/posts/:id/cancel', postController.cancel.bind(postController));
 app.post('/api/posts/:id/reschedule', postController.reschedule.bind(postController));
+app.delete('/api/posts/:id', postController.deleteOne.bind(postController));
 app.post('/api/posts/reorder', postController.reorder.bind(postController));
 app.post('/api/posts/bulk-delete', postController.bulkDelete.bind(postController));
 app.post('/api/posts/:id/regenerate', postController.regeneratePreview.bind(postController));
