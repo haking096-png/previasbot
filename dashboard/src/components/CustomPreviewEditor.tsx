@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { previewApi } from '@/lib/api';
 import toast from 'react-hot-toast';
 import GenerationLoader from '@/components/ui/GenerationLoader';
@@ -20,6 +20,36 @@ interface GeneratedPreview {
   buttonUrl: string;
 }
 
+// Parse formatting markers:
+// *text* -> <strong>TEXT</strong> (uppercase bold)
+// (text|url) -> <a> clickable button
+// [text] -> standard text
+function parseFormatting(text: string): { html: string; hasLinks: boolean } {
+  if (!text) return { html: '', hasLinks: false };
+
+  let hasLinks = false;
+
+  // First, replace (text|url) format for buttons
+  let html = text.replace(/\(([^|)]+)\|([^)]+)\)/g, (_, text, url) => {
+    hasLinks = true;
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="preview-btn">${text.trim().toUpperCase()}</a>`;
+  });
+
+  // Also support (link) - extract URL and use as text
+  html = html.replace(/\((https?:\/\/[^)]+)\)/g, (_, url) => {
+    hasLinks = true;
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="preview-btn">${url}</a>`;
+  });
+
+  // Replace *text* with uppercase bold
+  html = html.replace(/\*([^*]+)\*/g, '<strong class="preview-upper">$1</strong>');
+
+  // Convert newlines to <br>
+  html = html.replace(/\n/g, '<br>');
+
+  return { html, hasLinks };
+}
+
 export default function CustomPreviewEditor({ channelId, initialDescription, onGenerated }: CustomPreviewEditorProps) {
   const [prompt, setPrompt] = useState('');
   const [description, setDescription] = useState(initialDescription || '');
@@ -27,6 +57,7 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
   const [generated, setGenerated] = useState<GeneratedPreview | null>(null);
   const [generationStatus, setGenerationStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     if (initialDescription) setDescription(initialDescription);
@@ -71,7 +102,6 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
 
       if (onGenerated) onGenerated(newPreview);
 
-      // Voltar para idle após 2s
       setTimeout(() => {
         setGenerationStatus('idle');
       }, 2000);
@@ -90,10 +120,36 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
     }
   };
 
+  // Render formatted text
+  const renderFormattedText = (text: string) => {
+    const { html } = parseFormatting(text);
+    return <span dangerouslySetInnerHTML={{ __html: html }} />;
+  };
+
   return (
     <div className="space-y-4">
       <div className="bg-[#0d1117] border border-[#1f2937] rounded-lg p-5">
-        <h3 className="text-sm font-semibold text-white mb-4">Gerador de Prévia Personalizada</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-white">Gerador de Prévia Personalizada</h3>
+          <button
+            onClick={() => setShowHelp(!showHelp)}
+            className="text-xs text-cyan-400 hover:text-cyan-300"
+          >
+            {showHelp ? 'Ocultar ajuda' : 'Mostrar ajuda'}
+          </button>
+        </div>
+
+        {showHelp && (
+          <div className="mb-4 bg-[#0a0e1a] border border-cyan-500/20 rounded-lg p-4 text-xs space-y-2">
+            <p className="text-cyan-400 font-semibold mb-2">📝 Como formatar sua copy:</p>
+            <div className="space-y-1 text-gray-300">
+              <p><code className="bg-[#1f2937] px-1.5 py-0.5 rounded">*texto*</code> → <strong className="text-emerald-400">TEXTO MAIÚSCULO</strong> (negrito)</p>
+              <p><code className="bg-[#1f2937] px-1.5 py-0.5 rounded">(texto|https://link.com)</code> → Botão clicável</p>
+              <p><code className="bg-[#1f2937] px-1.5 py-0.5 rounded">(https://link.com)</code> → Link clicável</p>
+              <p className="text-gray-500 mt-2">Você pode misturar todos os formatos livremente!</p>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-4">
           <div>
@@ -124,19 +180,6 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
             />
           </div>
 
-          <div className="bg-[#0a0e1a] border border-[#1f2937] rounded-lg p-3">
-            <p className="text-[10px] text-gray-500 font-medium mb-2">FORMATAÇÃO SUPORTADA:</p>
-            <div className="flex flex-wrap gap-2 text-[10px]">
-              <span className="px-2 py-1 bg-[#1f2937] rounded text-gray-300">
-                *texto* → <strong>TEXTO</strong> (maiúsculas)
-              </span>
-              <span className="px-2 py-1 bg-[#1f2937] rounded text-gray-300">
-                (link) → botão clicável
-              </span>
-            </div>
-          </div>
-
-          {/* Generate Button or Loader */}
           {generationStatus === 'generating' ? (
             <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg p-6">
               <GenerationLoader status="generating" message="Gerando copy com IA..." size="md" showProgress={true} />
@@ -202,21 +245,36 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
 
             <div className="p-4">
               <div className="bg-[#182533] rounded-2xl overflow-hidden">
-                <div className="p-4">
-                  <div className="text-white font-bold text-lg leading-tight mb-3">
-                    {generated.headline || 'Sem headline'}
-                  </div>
-                  <div className="text-gray-300 text-sm whitespace-pre-line leading-relaxed mb-3">
-                    {generated.body}
-                  </div>
-                  {generated.preCta && (
-                    <div className="text-gray-400 text-sm whitespace-pre-line leading-relaxed mb-3">
-                      {generated.preCta}
+                <div className="p-4 space-y-3">
+                  {/* Headline com formatação */}
+                  {generated.headline && (
+                    <div className="text-white font-bold text-lg leading-tight">
+                      {renderFormattedText(generated.headline)}
                     </div>
                   )}
-                  <div className="text-white text-sm font-medium whitespace-pre-line leading-tight">
-                    {generated.cta}
-                  </div>
+
+                  {/* Body com formatação */}
+                  {generated.body && (
+                    <div className="text-gray-300 text-sm leading-relaxed">
+                      {renderFormattedText(generated.body)}
+                    </div>
+                  )}
+
+                  {/* Pre-CTA com formatação */}
+                  {generated.preCta && (
+                    <div className="text-gray-400 text-sm leading-relaxed">
+                      {renderFormattedText(generated.preCta)}
+                    </div>
+                  )}
+
+                  {/* CTA com formatação (botões clicáveis) */}
+                  {generated.cta && (
+                    <div className="text-white text-sm font-medium leading-tight">
+                      {renderFormattedText(generated.cta)}
+                    </div>
+                  )}
+
+                  {/* Botão URL principal */}
                   {generated.buttonUrl && (
                     <div className="pt-2">
                       <a
@@ -236,20 +294,39 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
 
           <div className="mt-4 space-y-2">
             <div className="p-3 bg-[#0a0e1a] rounded-lg">
-              <p className="text-[10px] text-gray-500 font-medium mb-1">HEADLINE</p>
-              <p className="text-sm text-white">{generated.headline}</p>
-            </div>
-            <div className="p-3 bg-[#0a0e1a] rounded-lg">
-              <p className="text-[10px] text-gray-500 font-medium mb-1">BODY</p>
-              <p className="text-sm text-white whitespace-pre-line">{generated.body}</p>
-            </div>
-            <div className="p-3 bg-[#0a0e1a] rounded-lg">
-              <p className="text-[10px] text-gray-500 font-medium mb-1">CTA</p>
-              <p className="text-sm text-white whitespace-pre-line">{generated.cta}</p>
+              <p className="text-[10px] text-gray-500 font-medium mb-1">FORMATAÇÃO APLICADA</p>
+              <p className="text-[10px] text-gray-400 font-mono">
+                *texto* → MAIÚSCULA NEGRITO | (texto|url) → BOTÃO CLICÁVEL
+              </p>
             </div>
           </div>
         </div>
       )}
+
+      <style jsx global>{`
+        .preview-btn {
+          display: inline-block;
+          background: #2ea6ff;
+          color: white;
+          padding: 0.4rem 1rem;
+          border-radius: 0.5rem;
+          font-weight: 600;
+          text-decoration: none;
+          margin: 0.25rem 0.125rem;
+          font-size: 0.875rem;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+        }
+        .preview-btn:hover {
+          background: #1e96ef;
+        }
+        .preview-upper {
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+          color: white;
+        }
+      `}</style>
     </div>
   );
 }

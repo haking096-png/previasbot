@@ -5,8 +5,6 @@ import { settingsApi, scheduleApi, channelApi } from '@/lib/api';
 import { Settings, Schedule, Channel } from '@/types';
 import { useChannelStore } from '@/lib/store';
 import toast from 'react-hot-toast';
-import CtaPresenteSection from '@/components/CtaPresenteSection';
-import EnqueteSection from '@/components/EnqueteSection';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -579,11 +577,44 @@ Cole seus exemplos abaixo:`;
                 </div>
               </div>
 
-              {/* CTA Presente Section */}
-              <CtaPresenteSection channelId={selectedChannelId!} channelName={selectedChannel.name} />
+              {/* CTA Presente and Enquetes - now have their own pages */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <a
+                  href="/dashboard/cta-presente"
+                  className="flex items-center gap-4 p-5 bg-[#0d1117] border border-[#1f2937] rounded-xl hover:border-amber-500/30 transition-colors group"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/30 transition-colors">
+                    <svg className="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-white">CTA Presente</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Gerenciar templates e horários de CTA</p>
+                  </div>
+                  <svg className="w-5 h-5 text-gray-500 group-hover:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </a>
 
-              {/* Enquetes Section */}
-              <EnqueteSection channelId={selectedChannelId!} channelName={selectedChannel.name} />
+                <a
+                  href="/dashboard/enquetes"
+                  className="flex items-center gap-4 p-5 bg-[#0d1117] border border-[#1f2937] rounded-xl hover:border-purple-500/30 transition-colors group"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/30 transition-colors">
+                    <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-white">Enquetes</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Gerenciar templates e horários de enquetes</p>
+                  </div>
+                  <svg className="w-5 h-5 text-gray-500 group-hover:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </a>
+              </div>
 
               {/* Save Button */}
               <div className="flex justify-end">

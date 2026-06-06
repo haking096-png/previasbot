@@ -3,7 +3,28 @@ import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 import { publishQueue } from '../utils/queue';
 
+const TIMEZONE = process.env.TZ || 'America/Sao_Paulo';
+
+function getTimezoneOffset(date: Date): number {
+  const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
+  const tzStr = date.toLocaleString('en-US', { timeZone: TIMEZONE });
+  const utcDate = new Date(utcStr);
+  const tzDate = new Date(tzStr);
+  return (utcDate.getTime() - tzDate.getTime()) / 60000;
+}
+
+function createScheduleDate(daysAhead: number, hours: number, minutes: number): Date {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const targetDate = new Date(Date.UTC(year, month - 1, day + daysAhead, hours, minutes, 0, 0));
+  const offset = getTimezoneOffset(targetDate);
+  targetDate.setMinutes(targetDate.getMinutes() + offset);
+  return targetDate;
+}
+
 export class VideoController {
+  // Schedule a video with conflict resolution
   async scheduleVideo(req: Request, res: Response) {
     try {
       const { description, preview, channelId, scheduledFor, ctaLink, mediaItemId } = req.body;
@@ -17,13 +38,14 @@ export class VideoController {
         return res.status(404).json({ error: 'Canal não encontrado' });
       }
 
-      // Find the video media item if provided, or create a placeholder
+      const effectiveCtaLink = ctaLink || channel.ctaLink || '';
+
+      // Create a placeholder media item for the video (required by Preview model)
       let videoMediaItem = null;
       if (mediaItemId) {
         videoMediaItem = await prisma.mediaItem.findUnique({ where: { id: mediaItemId } });
       }
 
-      // Create a placeholder media item for video-only posts
       let placeholderMediaItem = videoMediaItem;
       if (!placeholderMediaItem) {
         const timestamp = Date.now();
@@ -40,13 +62,14 @@ export class VideoController {
         });
       }
 
-      // Find the next available slot for video
-      const videoSlot = await this.findNextAvailableSlot(new Date(scheduledFor || Date.now()), channelId, 'VIDEO');
+      // Find the next available slot for the VIDEO (keeps its time)
+      const videoSlot = await this.findNextAvailableSlot(
+        new Date(scheduledFor || Date.now() + 60000),
+        channelId,
+        'VIDEO'
+      );
 
-      // Get effective CTA link
-      const effectiveCtaLink = ctaLink || channel.ctaLink || '';
-
-      // Create preview with the media item relation
+      // Create preview
       const previewRecord = await prisma.preview.create({
         data: {
           mediaItemId: placeholderMediaItem.id,
@@ -56,8 +79,8 @@ export class VideoController {
           cta: preview?.cta || '🔥 VER VÍDEO 🔥\n🔥 VER VÍDEO 🔥\n🔥 VER VÍDEO 🔥',
           buttonText: preview?.buttonText || '',
           buttonUrl: effectiveCtaLink,
-          approved: true,
           status: 'APPROVED',
+          approved: true,
         },
       });
 
@@ -80,20 +103,66 @@ export class VideoController {
         { delay: Math.max(0, videoDelay), jobId: `publish-video-${videoPost.id}` }
       );
 
-      // If there's a video media item with an associated image, schedule the image for the NEXT slot
-      if (videoMediaItem) {
-        const imageSlot = await this.findNextAvailableSlot(videoSlot, channelId, 'IMAGE');
-        logger.info('Video scheduled, thumbnail will be posted at next slot', {
-          videoSlot: videoSlot.toISOString(),
-          imageSlot: imageSlot.toISOString(),
+      // CRITICAL: Find and reschedule any PHOTO posts in the same slot to the next available
+      const conflictingPhotos = await prisma.post.findMany({
+        where: {
+          channelId,
+          scheduledFor: {
+            gte: new Date(videoSlot.getTime() - 60000),
+            lte: new Date(videoSlot.getTime() + 60000),
+          },
+          status: { in: ['SCHEDULED', 'PUBLISHING'] },
+          mediaItem: { mediaType: { not: 'VIDEO' } },
+        },
+      });
+
+      const rescheduledPhotos: any[] = [];
+      for (const photoPost of conflictingPhotos) {
+        if (!photoPost.scheduledFor) continue;
+
+        // Find next available slot for this photo (VIDEO keeps its slot)
+        const photoSlot = await this.findNextAvailableSlot(
+          new Date(photoPost.scheduledFor.getTime() + 60000),
+          channelId,
+          'IMAGE'
+        );
+
+        await prisma.post.update({
+          where: { id: photoPost.id },
+          data: { scheduledFor: photoSlot },
+        });
+
+        // Reschedule in queue
+        const photoDelay = photoSlot.getTime() - Date.now();
+        await publishQueue.add(
+          'publish-post',
+          { postId: photoPost.id },
+          { delay: Math.max(0, photoDelay), jobId: `publish-${photoPost.id}` }
+        );
+
+        rescheduledPhotos.push({
+          id: photoPost.id,
+          newSlot: photoSlot.toISOString(),
+        });
+
+        logger.info('Photo rescheduled due to video conflict', {
+          postId: photoPost.id,
+          oldSlot: photoPost.scheduledFor,
+          newSlot: photoSlot,
         });
       }
 
-      logger.info('Video scheduled successfully', { postId: videoPost.id, scheduledFor: videoSlot });
+      logger.info('Video scheduled successfully', {
+        postId: videoPost.id,
+        scheduledFor: videoSlot,
+        rescheduledPhotos: rescheduledPhotos.length,
+      });
+
       res.status(201).json({
         message: 'Vídeo agendado com sucesso',
         post: videoPost,
         videoSlot: videoSlot.toISOString(),
+        rescheduledPhotos,
       });
     } catch (error: any) {
       logger.error('Schedule video error', { error: error.message });
@@ -101,14 +170,19 @@ export class VideoController {
     }
   }
 
-  private async findNextAvailableSlot(startFrom: Date, channelId: string, mediaType: string): Promise<Date> {
+  // Find next available slot - VIDEO and IMAGE cannot be at same time
+  private async findNextAvailableSlot(
+    startFrom: Date,
+    channelId: string,
+    mediaType: string
+  ): Promise<Date> {
     const schedules = await prisma.schedule.findMany({
       where: { channelId, enabled: true },
       orderBy: { time: 'asc' },
     });
 
     if (schedules.length === 0) {
-      // Default: 1 hour after start
+      // No schedule, default to 1 hour after startFrom
       const defaultSlot = new Date(startFrom);
       defaultSlot.setHours(defaultSlot.getHours() + 1);
       return defaultSlot;
@@ -125,13 +199,13 @@ export class VideoController {
         candidateDate.setDate(candidateDate.getDate() + daysAhead);
         candidateDate.setHours(hours, minutes, 0, 0);
 
-        // Skip if in the past
         if (candidateDate.getTime() <= now.getTime() + 60000) continue;
 
-        // Check if slot is available (not occupied by any post within 30 min window)
-        const slotStart = new Date(candidateDate.getTime() - 1800000);
-        const slotEnd = new Date(candidateDate.getTime() + 1800000);
+        // Check 60-minute window (video takes longer than photo)
+        const slotStart = new Date(candidateDate.getTime() - 60000);
+        const slotEnd = new Date(candidateDate.getTime() + 60000);
 
+        // CRITICAL: Check no other post (any type) is in this slot
         const occupied = await prisma.post.findFirst({
           where: {
             channelId,
@@ -140,26 +214,13 @@ export class VideoController {
           },
         });
 
-        // Also check media type conflict - no two videos or two images at same slot
         if (!occupied) {
-          const sameTypeOccupied = await prisma.post.findFirst({
-            where: {
-              channelId,
-              scheduledFor: { gte: slotStart, lte: slotEnd },
-              status: { in: ['SCHEDULED', 'PUBLISHING', 'PUBLISHED'] },
-              mediaItem: { mediaType },
-            },
-            include: { mediaItem: true },
-          });
-
-          if (!sameTypeOccupied) {
-            slots.push(candidateDate);
-          }
+          slots.push(candidateDate);
         }
       }
     }
 
-    // Return the next available slot (at least 1 hour after requested start)
+    // Return first available slot at least 1 hour after start
     const minSlot = new Date(startFrom);
     minSlot.setHours(minSlot.getHours() + 1);
 
