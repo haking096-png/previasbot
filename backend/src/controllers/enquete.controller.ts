@@ -1,8 +1,33 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
+import ctaEnqueteService from '../services/ctaEnquete.service';
 
 export class EnqueteController {
+  // ━━━━━━━━━━━━━━━ Test Enquete (Post now) ━━━━━━━━━━━━━━━
+
+  async testNow(req: Request, res: Response) {
+    try {
+      const { channelId } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ error: 'channelId é obrigatório' });
+      }
+
+      const result = await ctaEnqueteService.postEnqueteNow(channelId);
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.message });
+      }
+
+      logger.info('Enquete posted via test', { channelId });
+      res.json(result);
+    } catch (error: any) {
+      logger.error('Test enquete error', { error: error.message });
+      res.status(500).json({ error: 'Erro ao postar enquete' });
+    }
+  }
+
   // ━━━━━━━━━━━━━━━ Enquete Schedules ━━━━━━━━━━━━━━━
 
   async getSchedules(req: Request, res: Response) {

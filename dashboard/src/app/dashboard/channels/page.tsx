@@ -139,21 +139,37 @@ export default function ChannelsPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[#f1f5f9]">Canais</h1>
-          <p className="text-sm text-[#64748b] mt-1">Gerencie seus bots e canais do Telegram</p>
+          <p className="text-sm text-[#64748b] mt-1">
+            Gerenciamento de canais foi movido para <strong>Configurações</strong> para ficar mais simples.
+          </p>
         </div>
-        <button
-          onClick={() => { setForm(emptyForm); setEditingId(null); setShowForm(true); }}
+        <a 
+          href="/dashboard/settings" 
           className="px-4 py-2.5 bg-[#3b82f6] text-white rounded-lg text-sm font-medium hover:bg-[#2563eb] transition-colors"
         >
-          + Novo Canal
-        </button>
+          Ir para Configurações
+        </a>
       </div>
 
       {/* Channel List */}
       {channels.length === 0 && !showForm ? (
-        <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-8 text-center">
-          <h3 className="text-sm font-medium text-[#f1f5f9] mb-1">Nenhum canal configurado</h3>
-          <p className="text-xs text-[#64748b]">Adicione um canal para comecar a publicar</p>
+        <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-8 text-center max-w-lg mx-auto">
+          <div className="mx-auto w-14 h-14 rounded-full bg-[var(--accent-cyan)]/10 flex items-center justify-center mb-4">
+            <svg className="w-7 h-7 text-[var(--accent-cyan)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 8h2a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8a2 2 0 012-2h2m2-4v4m0 0v4m0-4h4" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-[#f1f5f9] mb-2">Vamos configurar seu primeiro canal</h3>
+          <p className="text-sm text-[#64748b] mb-6 max-w-sm mx-auto">
+            Você precisa criar um canal no Telegram e conectar o bot. É rápido e vamos te guiar.
+          </p>
+          <button 
+            onClick={() => { setForm(emptyForm); setEditingId(null); setShowForm(true); }}
+            className="px-6 py-2.5 bg-[#3b82f6] text-white rounded-lg text-sm font-medium hover:bg-[#2563eb] transition-colors"
+          >
+            Criar meu primeiro canal
+          </button>
+          <p className="text-[10px] text-[#475569] mt-4">Você vai precisar do Token do Bot (do @BotFather) e do Chat ID.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -244,11 +260,18 @@ export default function ChannelsPage() {
               <div>
                 <label className="block text-xs font-medium text-[#64748b] mb-1.5">Bot Token *</label>
                 <input type="password" value={form.botToken} onChange={(e) => setForm({ ...form, botToken: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm" placeholder="123456:ABC-DEF..." />
+                <p className="mt-1 text-[10px] text-[#475569]">
+                  Crie um bot no <a href="https://t.me/BotFather" target="_blank" className="text-[var(--accent-cyan)] hover:underline">@BotFather</a> e cole o token aqui.
+                </p>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-[#64748b] mb-1.5">Chat ID *</label>
                 <input type="text" value={form.chatId} onChange={(e) => setForm({ ...form, chatId: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm" placeholder="-1001234567890" />
+                <p className="mt-1 text-[10px] text-[#475569]">
+                  Adicione o bot como admin no canal/grupo e envie uma mensagem. Depois acesse: <br />
+                  <code className="text-[10px]">https://api.telegram.org/botSEU_TOKEN/getUpdates</code>
+                </p>
               </div>
 
               <div>
@@ -257,43 +280,258 @@ export default function ChannelsPage() {
                 <p className="mt-1 text-[10px] text-[#475569]">Chat ID de um canal/grupo privado onde as imagens serao armazenadas pelo bot</p>
               </div>
 
-              {/* Preview Prompt */}
-              <div className="border-t border-[#1e293b] pt-3 mt-3">
-                <h4 className="text-xs font-semibold text-[#f1f5f9] mb-1">Prompt de Preview (Copy da foto)</h4>
-                <p className="text-[10px] text-[#64748b] mb-2">Defina o perfil da modelo, estilo de escrita, exemplos de copy, etc. Este prompt sera usado para gerar as previas das fotos.</p>
+              {/* Preview Prompt - THE MAIN THING */}
+              <div className="border-t border-[#1e293b] pt-4 mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="text-sm font-semibold text-[#f1f5f9]">Prompt Mestre do Canal (Copywriter)</h4>
+                    <p className="text-[11px] text-[#64748b]">Cole aqui um prompt GRANDE com muitos exemplos no estilo exato que você quer. Esse é o coração do canal.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const template = `Você é a copywriter oficial deste canal. Sua única missão é replicar com perfeição o estilo, estrutura, tom, emojis, nível de ousadia e formatação dos exemplos abaixo em TODAS as gerações (copys de foto, copys de vídeo, enquetes e CTA Presente).
+
+REGRAS OBRIGATÓRIAS DE FORMATAÇÃO:
+- Headline sempre em MAIÚSCULAS com emojis dos dois lados
+- Corpo curto (2-4 linhas), direto, safado, usando as mesmas gírias e nível de detalhe dos exemplos
+- Sempre terminar com uma pergunta provocante
+- Depois da pergunta, repetir o CTA exatamente 3 vezes (essas 3 linhas viram os links clicáveis)
+- Tom: safada, direta, um pouco carinhosa e viciada
+
+Exemplos de copy no estilo exato que você deve seguir:
+
+🔥 LOIRA PELADA COM PLUG NO CUZINHO
+
+Tô de quatro na cama peladinha mostrando essa bund4 grande empinada com plugzinho brilhando no cuzinho 😈
+Olhando pra trás com cara de safada enquanto aperto minha bunda pra você…
+
+Tá imaginando como seria tirar esse plug e me comer bem fundo?
+
+Vem ver o vídeo completo sem censura agora 👇
+
+🍑 QUERO VER TUDO 🍑
+🍑 QUERO VER TUDO 🍑
+🍑 QUERO VER TUDO 🍑
+
+---
+
+🔥 LOIRA DE QUATRO REBOLANDO LENTAMENTE
+
+De quatro na cama, rebolando bem devagar só pra você ver essa bundão gostosa balançando. Cuzinho apertadinho e bucetinha já molhadinha de tesão 😈💦
+
+Quer ver eu rebolando mais forte e abrindo tudinho pra você?
+
+🍑 ENTRA AGORA E VÊ TUDO 🍑
+🍑 ENTRA AGORA E VÊ TUDO 🍑
+🍑 ENTRA AGORA E VÊ TUDO 🍑
+
+---
+
+**Exemplos de Enquetes que convertem muito (use esse mesmo estilo):**
+
+ONDE VOCÊ GOZARIA EM MIM AGORA? 💦
+
+- Bem fundo no cuzinho apertado 😈
+- Na boca enquanto eu engasgo gostoso 👄
+- Na bucetinha bem molhada e inchada 🍑
+- No meu rostinho safado
+
+---
+
+QUAL BURACO VOCÊ QUER COMER PRIMEIRO HOJE?
+
+- Cuzinho virgem e apertadinho
+- Bucetinha já escorrendo de tesão
+- Minha boquinha gulosa e quente
+
+---
+
+EU TÔ DE QUATRO AGORA... O QUE VOCÊ FARIA COMIGO?
+
+- Metia devagar até eu implorar por mais
+- Comia sem parar até eu gozar tremendo
+- Colocava um plug e metia forte
+- Filmava enquanto me fodia gostoso
+
+---
+
+**Exemplos de CTA Presente que convertem (use esse mesmo estilo):**
+
+EU AINDA TÔ AQUI COM O PRESENTINHO 🎁
+
+Vim te dar um presentinho bem safado pra você gozar gostoso...
+
+Mas ele só vai durar mais um pouquinho 😈
+
+🎁 RESGATAR MEU PRESENTE AGORA
+🎁 RESGATAR MEU PRESENTE AGORA
+🎁 RESGATAR MEU PRESENTE AGORA
+
+---
+
+OLHA O QUE EU TENHO PRA VOCÊ HOJE 💦
+
+Gravei um vídeo bem quente e exclusivo só pensando em você gozando...
+
+Quer ver eu me tocando bem devagar e gemendo seu nome?
+
+🎁 QUERO VER MEU PRESENTE AGORA
+🎁 QUERO VER MEU PRESENTE AGORA
+🎁 QUERO VER MEU PRESENTE AGORA
+
+---
+
+Quando o usuário der uma descrição de vídeo, crie a copy adaptando para o que está acontecendo no vídeo, mantendo exatamente o mesmo estilo, estrutura, tom e formatação dos exemplos acima (inclusive enquetes e CTA Presente).`;
+
+                      setForm({ ...form, previewPrompt: template });
+                    }}
+                    className="px-3 py-1 text-xs font-medium bg-[#1e293b] hover:bg-[#334155] text-[#94a3b8] rounded-lg transition-colors"
+                  >
+                    Usar Template Pronto
+                  </button>
+                </div>
+
                 <textarea
                   value={form.previewPrompt}
                   onChange={(e) => setForm({ ...form, previewPrompt: e.target.value })}
-                  rows={6}
-                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
-                  placeholder={`Ex:\nNome: Victoria\nCaracteristicas: Loira, corpo fitness, tatuada, madura\nPersonalidade: Safada, provocante, carinhosa\n\n--- Exemplos de Copy ---\nBUNDÃO EMPINADO 🍑🔥\n\nLoira gostosa de quatro...\nCorpo perfeito rebolando.\n\nQuer ver tudo? 👇\n\n🍑 VER A SAFADA 🍑`}
+                  rows={14}
+                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-3 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm font-mono leading-relaxed"
+                  placeholder={`COLE AQUI SEU PROMPT MESTRE (o mais importante do canal)
+
+Esse prompt será usado como referência principal para:
+- Copys de fotos
+- Copys de VÍDEOS (descreva o que acontece no vídeo)
+- Enquetes (se o campo específico estiver vazio)
+- CTA Presente (se o campo específico estiver vazio)
+
+Dicas para ficar excelente:
+- Cole vários exemplos reais do seu canal (quanto mais, melhor)
+- Explique regras de formatação: onde usar MAIÚSCULA, onde repetir o CTA 3x, onde colocar o link
+- Inclua tom, gírias, emojis preferidos, estrutura exata
+- Mencione que deve funcionar tanto para fotos quanto para descrições de vídeo
+
+Exemplo de início bom:
+
+Você é a copywriter oficial deste canal. Siga EXATAMENTE o estilo dos exemplos abaixo em tudo que gerar (copys de imagem, copys de vídeo, enquetes e CTA presente).
+
+Regras obrigatórias:
+- Headline geralmente em MAIÚSCULAS com emojis dos dois lados
+- Corpo direto, safado, usando as gírias do exemplo
+- Termine com uma pergunta provocante
+- Depois da pergunta, repita o CTA exatamente 3 vezes (essas 3 linhas viram os links clicáveis)
+- Mantenha o mesmo nível de ousadia e personalidade
+
+Exemplos de copy no estilo que você deve copiar:
+
+🔥 LOIRA PELADA COM PLUG NO CUZINHO
+
+Tô de quatro na cama peladinha mostrando essa bund4 grande empinada com plugzinho brilhando no cuzinho 😈
+Olhando pra trás com cara de safada enquanto aperto minha bunda pra você…
+
+Tá imaginando como seria tirar esse plug e me comer bem fundo?
+
+Vem ver o vídeo completo sem censura agora 👇
+
+🍑 QUERO VER TUDO 🍑
+🍑 QUERO VER TUDO 🍑
+🍑 QUERO VER TUDO 🍑
+
+[ Cole aqui mais 5~10 exemplos seus... ]`}
                 />
+
+                {/* Quick Test Area - now clearly supports video descriptions */}
+                <div className="mt-3 p-3 bg-[#0a0e1a] border border-[#1e293b] rounded-lg">
+                  <div className="text-xs font-semibold text-[#f1f5f9] mb-1">Testar o Prompt Mestre</div>
+                  <p className="text-[10px] text-[#64748b] mb-2">
+                    Cole uma descrição de <strong>foto</strong> ou do que acontece no <strong>vídeo</strong>. O prompt acima será usado para gerar a copy.
+                  </p>
+
+                  <textarea
+                    id="test-input"
+                    rows={3}
+                    className="w-full bg-[#111827] border border-[#1e293b] rounded px-2 py-1.5 text-xs text-[#e2e8f0] placeholder-[#475569]"
+                    placeholder="Ex: Loira de quatro na cama com plug no cuzinho, olhando pra trás com cara de safada e rebolando devagar..."
+                  />
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const testInput = (document.getElementById('test-input') as HTMLTextAreaElement)?.value;
+                      if (!testInput || !form.previewPrompt) {
+                        alert('Cole o Prompt Mestre acima e uma descrição (de foto ou vídeo) para testar');
+                        return;
+                      }
+                      try {
+                        const res = await fetch('/api/previews/test', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            prompt: form.previewPrompt,
+                            description: testInput,
+                            ctaLink: form.ctaLink || 'https://t.me/seubot'
+                          })
+                        });
+                        const data = await res.json();
+                        alert(
+                          `HEADLINE:\n${data.headline}\n\n` +
+                          `CORPO:\n${data.body}\n\n` +
+                          `PRÉ-CTA: ${data.preCta}\n\n` +
+                          `CTAs (repetidos):\n${data.cta}`
+                        );
+                      } catch (err) {
+                        alert('Erro no teste. Verifique se o backend está rodando.');
+                      }
+                    }}
+                    className="mt-2 w-full text-xs py-2 bg-[#3b82f6] hover:bg-[#2563eb] text-white rounded font-medium transition-colors"
+                  >
+                    Gerar Copy com o Prompt Mestre (Foto ou Vídeo)
+                  </button>
+
+                  <p className="text-[10px] text-[#475569] mt-1.5">
+                    Dica: Teste várias vezes e ajuste seu prompt até a IA reproduzir exatamente o seu estilo (maiúsculas, repetições, tom, etc).
+                  </p>
+                </div>
               </div>
 
-              {/* CTA Prompt */}
-              <div className="border-t border-[#1e293b] pt-3 mt-3">
-                <h4 className="text-xs font-semibold text-[#f1f5f9] mb-1">Prompt de CTA Presente</h4>
-                <p className="text-[10px] text-[#64748b] mb-2">Defina como a IA deve gerar as mensagens de CTA presente. Inclua nome, personalidade e exemplos de CTAs.</p>
-                <textarea
-                  value={form.ctaPrompt}
-                  onChange={(e) => setForm({ ...form, ctaPrompt: e.target.value })}
-                  rows={6}
-                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
-                  placeholder={`Ex:\nNome: Victoria\nPersonalidade: Safada e carinhosa\n\n--- Exemplos ---\nEU AINDA TO AQUI 🎁\n\nVim te dar um presentinho...\nAbre antes que eu mude de ideia 😈\n\n🎁 RESGATAR PRESENTE`}
-                />
-              </div>
+              {/* CTA and Enquete Prompts - now secondary / optional */}
+              <div className="border-t border-[#1e293b] pt-4 mt-4 space-y-4">
+                <div>
+                  <details className="group">
+                    <summary className="text-xs font-medium text-[#64748b] cursor-pointer hover:text-[#94a3b8] flex items-center gap-2">
+                      Campos avançados (opcional)
+                      <span className="text-[10px] text-[#475569] group-open:hidden">— só use se quiser sobrescrever o Prompt Mestre</span>
+                    </summary>
 
-              {/* Enquete Prompt */}
-              <div className="border-t border-[#1e293b] pt-3 mt-3">
-                <h4 className="text-xs font-semibold text-[#f1f5f9] mb-1">Prompt de Enquete</h4>
-                <p className="text-[10px] text-[#64748b] mb-2">Defina como a IA deve gerar as enquetes. Inclua nome, personalidade e exemplos de enquetes.</p>
-                <textarea
-                  value={form.enquetePrompt}
-                  onChange={(e) => setForm({ ...form, enquetePrompt: e.target.value })}
-                  rows={6}
-                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
-                  placeholder={`Ex:\nNome: Victoria\nPersonalidade: Provocante e interativa\n\n--- Exemplos ---\nONDE VC GOZARIA EM MIM? 💦\n- Na boca 👄\n- No corpo 🍑\n- Dentro 😈`}
-                />
+                    <div className="mt-3 space-y-4 pl-1">
+                      {/* CTA Prompt */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-[#f1f5f9] mb-1">Prompt de CTA Presente (opcional)</h4>
+                        <p className="text-[10px] text-[#64748b] mb-2">Deixe vazio para usar o estilo do Prompt Mestre acima.</p>
+                        <textarea
+                          value={form.ctaPrompt}
+                          onChange={(e) => setForm({ ...form, ctaPrompt: e.target.value })}
+                          rows={4}
+                          className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-xs"
+                          placeholder="Deixe em branco para usar o Prompt Mestre"
+                        />
+                      </div>
+
+                      {/* Enquete Prompt */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-[#f1f5f9] mb-1">Prompt de Enquete (opcional)</h4>
+                        <p className="text-[10px] text-[#64748b] mb-2">Deixe vazio para usar o estilo do Prompt Mestre acima.</p>
+                        <textarea
+                          value={form.enquetePrompt}
+                          onChange={(e) => setForm({ ...form, enquetePrompt: e.target.value })}
+                          rows={4}
+                          className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-xs"
+                          placeholder="Deixe em branco para usar o Prompt Mestre"
+                        />
+                      </div>
+                    </div>
+                  </details>
+                </div>
               </div>
             </div>
 

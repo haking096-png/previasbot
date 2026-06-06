@@ -43,58 +43,56 @@ export class PreviewService {
         channelPrompt = this.buildLegacyPromptFromSettings(settings);
       }
 
-      const prompt = `${channelPrompt}
+      // Strong instruction to follow the user's rich prompt + return structured JSON
+      const userPrompt = `${channelPrompt}
 
 ---
 
-Baseado nesta análise da foto, crie UMA copy original seguindo EXATAMENTE o estilo, tom, vocabulário e estrutura dos exemplos acima:
+**TAREFA ATUAL:**
+Analise as informações abaixo da imagem/vídeo e gere UMA copy de prévia ORIGINAL seguindo **EXATAMENTE** o estilo, estrutura, tom, emojis, nível de ousadia, repetições e regras de formatação dos exemplos que você acabou de receber.
 
+**Informações da mídia:**
 - Cenário: ${analysis.scenario || 'não identificado'}
-- Pose: ${analysis.pose || 'não identificada'}
-- Roupa: ${analysis.clothing || 'não identificada'}
-- Emoção: ${analysis.emotion || 'não identificada'}
-- Estilo visual: ${analysis.visualStyle || 'não identificado'}
+- Pose / Ação: ${analysis.pose || 'não identificada'}
+- Roupa / Estado: ${analysis.clothing || 'não identificada'}
+- Emoção / Expressão: ${analysis.emotion || 'não identificada'}
 - Foco principal: ${analysis.mainFocus || 'não identificado'}
-- Cores: ${analysis.colors || 'não identificadas'}
-- Sensação: ${analysis.feeling || 'não identificada'}
-- Descrição completa: ${analysis.description || 'não disponível'}
-- Categoria: ${analysis.category || 'não categorizada'}
+- Sensação geral: ${analysis.feeling || 'não identificada'}
+- Descrição: ${analysis.description || 'não disponível'}
 
-FORMATO DE SAÍDA (retorne APENAS texto puro, SEM HTML, SEM markdown):
+**INSTRUÇÕES OBRIGATÓRIAS DE SAÍDA (retorne APENAS JSON válido):**
 
-HEADLINE EM CAPS COM EMOJIS
+{
+  "headline": "HEADLINE no estilo exato dos seus exemplos (pode ter maiúsculas, emojis dos dois lados, etc)",
+  "body": "Corpo da copy em 2-4 linhas, respeitando o estilo, gírias, forma de descrever o corpo e ações dos exemplos",
+  "preCta": "Frase provocante curta que vem antes dos CTAs (com emoji se for o padrão dos exemplos)",
+  "ctaLines": ["CTA 1 (exatamente como deve aparecer)", "CTA 2", "CTA 3"],
+  "notes": "opcional - qualquer observação curta"
+}
 
-[corpo: 2-3 linhas no estilo dos exemplos]
-
-[pergunta provocante com emoji 👇]
-
-[EMOJI TEXTO DO CTA EMOJI]
-[EMOJI TEXTO DO CTA EMOJI]
-[EMOJI TEXTO DO CTA EMOJI]
-
-REGRAS:
-- COPIE o tom, estilo de emojis, vocabulário e nível de ousadia dos exemplos acima
-- Varie o conteúdo baseado na análise da foto, mas MANTENHA o estilo idêntico aos exemplos
-- Cada copy deve ser DIFERENTE das anteriores
-- NÃO use HTML ou tags
-- Retorne APENAS texto puro`;
+**REGRAS CRÍTICAS:**
+- Siga fielmente os exemplos que você recebeu (incluindo onde usa MAIÚSCULAS, onde repete o CTA 3 vezes, onde coloca os links).
+- O array "ctaLines" deve ter exatamente 3 itens (os três botões clicáveis).
+- Mantenha o mesmo nível de ousadia e vocabulário dos exemplos.
+- Cada geração deve ser fresca, mas com a mesma "personalidade" do prompt.
+- Retorne **APENAS o JSON**, sem texto antes ou depois.`;
 
       const response = await axios.post(
         `${this.apiUrl}/chat/completions`,
         {
-          model: 'grok-4-1-fast-non-reasoning',
+          model: await this.getGrokModel('preview'),
           messages: [
             {
               role: 'system',
-              content: 'Você é uma copywriter. Sua tarefa é gerar textos seguindo EXATAMENTE o estilo e tom dos exemplos fornecidos pelo usuário. Retorne APENAS texto puro sem formatação.'
+              content: 'Você é uma copywriter especialista em conteúdo adulto para Telegram. Sua única missão é reproduzir com perfeição o estilo, estrutura e personalidade dos exemplos que o usuário fornece. Sempre responda com JSON estruturado quando pedido.'
             },
             {
               role: 'user',
-              content: prompt
+              content: userPrompt
             }
           ],
-          temperature: 0.9,
-          max_tokens: 500
+          temperature: 0.85,
+          max_tokens: 700
         },
         {
           headers: {
@@ -106,80 +104,9 @@ REGRAS:
       );
 
       const generatedText = response.data.choices[0]?.message?.content || '';
+      const preview = this.parseStructuredPreview(generatedText, effectiveCtaLink);
 
-      // Strip any HTML tags the AI might have included
-      const cleanText = generatedText.replace(/<[^>]*>/g, '').trim();
-
-      // Parse the generated text
-      const lines = cleanText.split('\n');
-
-      // Extract headline (first non-empty line)
-      let headline = '';
-      let startIdx = 0;
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].trim()) {
-          headline = lines[i].trim();
-          startIdx = i + 1;
-          break;
-        }
-      }
-      if (!headline) headline = 'LOIRINHA SAFADA 🔥🍑';
-
-      // Find body lines, preCta, and CTA
-      const bodyLines: string[] = [];
-      let preCta = '';
-      let ctaLines: string[] = [];
-      let currentSection = 'body';
-
-      for (let i = startIdx; i < lines.length; i++) {
-        const line = lines[i].trim();
-
-        if (!line) {
-          if (currentSection === 'body' && bodyLines.length > 0) currentSection = 'preCta';
-          else if (currentSection === 'preCta' && preCta) currentSection = 'cta';
-          continue;
-        }
-
-        if (currentSection === 'body') {
-          bodyLines.push(line);
-        } else if (currentSection === 'preCta' && !preCta) {
-          preCta = line;
-        } else if (currentSection === 'preCta' && preCta) {
-          // If we hit another line after preCta without empty line, it's CTA
-          currentSection = 'cta';
-          ctaLines.push(line);
-        } else if (currentSection === 'cta') {
-          ctaLines.push(line);
-        }
-      }
-
-      // Defaults
-      const body = bodyLines.join('\n') || 'Loira gostosa aqui provocando pra você...\nCorpo todo à mostra, bem safadinha e pronta.';
-      if (!preCta) preCta = 'Quer ver tudo sem censura? 👇';
-
-      // CTA: ensure we have exactly 3 lines
-      if (ctaLines.length === 0) {
-        const ctaOptions = ['🍑 VER A SAFADA 🍑', '🔥 CLICA PRA VER 🔥', '💦 VEM VER TUDO 💦', '😈 ENTRA NO VIP 😈'];
-        const selectedCta = ctaOptions[Math.floor(Math.random() * ctaOptions.length)];
-        ctaLines = [selectedCta, selectedCta, selectedCta];
-      } else if (ctaLines.length < 3) {
-        // Repeat the first CTA to fill 3 lines
-        while (ctaLines.length < 3) {
-          ctaLines.push(ctaLines[0]);
-        }
-      }
-      const cta = ctaLines.slice(0, 3).join('\n');
-
-      const preview: PreviewContent = {
-        headline,
-        body,
-        preCta,
-        cta,
-        buttonText: '',
-        buttonUrl: effectiveCtaLink
-      };
-
-      logger.info('Preview generated successfully', { headline, preCta });
+      logger.info('Preview generated successfully (structured)', { headline: preview.headline });
       return preview;
 
     } catch (error: any) {
@@ -190,6 +117,155 @@ REGRAS:
 
       return this.generateFallbackPreview(analysis, ctaLink);
     }
+  }
+
+  /**
+   * New method: Generate preview directly from a video description (no image analysis needed)
+   */
+  async generateFromVideoDescription(
+    videoDescription: string,
+    ctaLink: string,
+    channelId?: string
+  ): Promise<PreviewContent> {
+    try {
+      logger.info('Generating preview from video description', { channelId });
+
+      let channelPrompt = '';
+      let effectiveCtaLink = ctaLink;
+
+      if (channelId) {
+        const prisma = (await import('../utils/prisma')).default;
+        const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+
+        if (channel) {
+          effectiveCtaLink = channel.ctaLink || ctaLink;
+          channelPrompt = channel.previewPrompt || '';
+        }
+      }
+
+      if (!channelPrompt) {
+        const settings = await this.getSettings();
+        channelPrompt = this.buildLegacyPromptFromSettings(settings);
+      }
+
+      const userPrompt = `${channelPrompt}
+
+---
+
+**TAREFA:**
+O usuário descreveu o que acontece em um vídeo. Gere uma prévia no **exato mesmo estilo** dos exemplos acima, adaptando para o conteúdo do vídeo.
+
+Descrição do vídeo:
+${videoDescription}
+
+Retorne APENAS um JSON válido com esta estrutura:
+{
+  "headline": "HEADLINE no estilo dos exemplos",
+  "body": "Corpo adaptado para o que acontece no vídeo",
+  "preCta": "Frase provocante antes do CTA",
+  "ctaLines": ["CTA repetido 1", "CTA repetido 2", "CTA repetido 3"]
+}`;
+
+      const response = await axios.post(
+        `${this.apiUrl}/chat/completions`,
+        {
+          model: await this.getGrokModel('preview'),
+          messages: [
+            {
+              role: 'system',
+              content: 'Você é uma copywriter especialista em conteúdo adulto para Telegram. Reproduza com perfeição o estilo dos exemplos fornecidos pelo usuário.'
+            },
+            {
+              role: 'user',
+              content: userPrompt
+            }
+          ],
+          temperature: 0.85,
+          max_tokens: 600
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 60000
+        }
+      );
+
+      const generatedText = response.data.choices[0]?.message?.content || '';
+      return this.parseStructuredPreview(generatedText, effectiveCtaLink);
+
+    } catch (error: any) {
+      logger.error('Video preview generation error', { error: error.message });
+      // Simple fallback
+      return {
+        headline: 'VÍDEO NOVO CHEGANDO 🔥',
+        body: videoDescription.substring(0, 180),
+        preCta: 'Quer ver o vídeo completo sem censura? 👇',
+        cta: '🔥 VER AGORA 🔥\n🔥 VER AGORA 🔥\n🔥 VER AGORA 🔥',
+        buttonText: '',
+        buttonUrl: ctaLink
+      };
+    }
+  }
+
+  private parseStructuredPreview(rawText: string, buttonUrl: string): PreviewContent {
+    try {
+      // Clean common issues
+      let clean = rawText.trim();
+      clean = clean.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON found');
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      const headline = (parsed.headline || 'PRÉVIA EXCLUSIVA 🔥').trim();
+      const body = (parsed.body || 'Conteúdo quente te esperando...').trim();
+      const preCta = (parsed.preCta || 'Quer ver tudo sem censura? 👇').trim();
+
+      let ctaLines: string[] = Array.isArray(parsed.ctaLines) ? parsed.ctaLines : [];
+      if (ctaLines.length === 0) {
+        ctaLines = ['🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑'];
+      }
+      while (ctaLines.length < 3) ctaLines.push(ctaLines[0]);
+      const cta = ctaLines.slice(0, 3).join('\n');
+
+      return {
+        headline,
+        body,
+        preCta,
+        cta,
+        buttonText: '',
+        buttonUrl
+      };
+    } catch (e) {
+      logger.warn('Failed to parse structured preview JSON, using fallback parser');
+      // Fallback to old logic if JSON fails
+      return this.fallbackTextParse(rawText, buttonUrl);
+    }
+  }
+
+  private fallbackTextParse(text: string, buttonUrl: string): PreviewContent {
+    const cleanText = text.replace(/<[^>]*>/g, '').trim();
+    const lines = cleanText.split('\n').filter(l => l.trim());
+
+    const headline = lines[0] || 'LOIRA GOSTOSA 🔥';
+    const body = lines.slice(1, 4).join('\n') || 'Corpo perfeito te esperando...';
+    const preCta = lines.find(l => l.includes('?') || l.includes('👇')) || 'Quer ver tudo? 👇';
+
+    let ctaLines = lines.filter(l => l.includes('🍑') || l.includes('🔥') || l.includes('VER') || l.includes('CLICA')).slice(0, 3);
+    if (ctaLines.length < 3) {
+      ctaLines = ['🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑'];
+    }
+
+    return {
+      headline,
+      body,
+      preCta,
+      cta: ctaLines.join('\n'),
+      buttonText: '',
+      buttonUrl
+    };
   }
 
   /**
@@ -248,6 +324,24 @@ REGRAS:
     } catch (error) {
       logger.error('Failed to get settings', { error });
       return {};
+    }
+  }
+
+  private async getGrokModel(action: 'preview' | 'analysis' = 'preview'): Promise<string> {
+    try {
+      const prisma = (await import('../utils/prisma')).default;
+      const key = action === 'preview' ? 'grok_model_preview' : 'grok_model_analysis';
+      const defaultKey = 'grok_model_default';
+
+      const specific = await prisma.settings.findUnique({ where: { key } });
+      if (specific?.value?.trim()) return specific.value.trim();
+
+      const fallback = await prisma.settings.findUnique({ where: { key: defaultKey } });
+      if (fallback?.value?.trim()) return fallback.value.trim();
+
+      return 'grok-4-1-fast-non-reasoning';
+    } catch {
+      return 'grok-4-1-fast-non-reasoning';
     }
   }
 

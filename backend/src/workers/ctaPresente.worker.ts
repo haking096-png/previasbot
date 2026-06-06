@@ -51,13 +51,19 @@ async function checkAndPublishCtaPresente() {
         continue;
       }
 
-      if (!channel.ctaPrompt) {
-        logger.warn('No CTA prompt configured for channel, skipping', { channelId: channel.id });
+      const mainStyle = channel.previewPrompt || '';
+
+      if (!channel.ctaPrompt && !mainStyle) {
+        logger.warn('No CTA prompt and no main style prompt configured for channel, skipping', { channelId: channel.id });
         continue;
       }
 
       try {
-        const generated = await grokService.generateCtaPresente(channel.ctaPrompt, channel.ctaLink);
+        const generated = await grokService.generateCtaPresente(
+          channel.ctaPrompt || 'Siga o estilo geral do canal.',
+          channel.ctaLink,
+          mainStyle
+        );
 
         // Apply censoring
         const headline = censorText(generated.headline);

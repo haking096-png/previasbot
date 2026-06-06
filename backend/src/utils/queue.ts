@@ -24,5 +24,7 @@ export const analyzeQueue = new Queue('analyze', { connection });
 export const generateQueue = new Queue('generate', { connection });
 export const publishQueue = new Queue('publish', { connection });
 export const scheduleQueue = new Queue('schedule', { connection });
+export const ctaPresenteQueue = new Queue('cta-presente', { connection });
+export const enqueteQueue = new Queue('enquete', { connection });
 
 export { connection };

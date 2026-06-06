@@ -51,13 +51,18 @@ async function checkAndPublishEnquete() {
         continue;
       }
 
-      if (!channel.enquetePrompt) {
-        logger.warn('No enquete prompt configured for channel, skipping', { channelId: channel.id });
+      const mainStyle = channel.previewPrompt || '';
+
+      if (!channel.enquetePrompt && !mainStyle) {
+        logger.warn('No enquete prompt and no main style prompt configured for channel, skipping', { channelId: channel.id });
         continue;
       }
 
       try {
-        const generated = await grokService.generateEnquete(channel.enquetePrompt);
+        const generated = await grokService.generateEnquete(
+          channel.enquetePrompt || 'Siga o estilo geral do canal para criar enquetes divertidas e provocantes.',
+          mainStyle
+        );
 
         // Apply censoring
         const question = censorText(generated.question.substring(0, 300));

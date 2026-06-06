@@ -42,7 +42,9 @@ const DEFAULT_OPTIONS: Required<GrokRequestOptions> = {
 export class GrokService {
   private apiKey: string;
   private apiUrl: string;
-  private readonly MODEL = 'grok-4-1-fast-non-reasoning';
+
+  // Default fallback model
+  private readonly DEFAULT_MODEL = 'grok-4-1-fast-non-reasoning';
 
   constructor() {
     this.apiKey = grokConfig.apiKey;
@@ -60,7 +62,7 @@ export class GrokService {
     const { base64Image, mimeType } = this.readImageAsBase64(imagePath);
     const fileName = path.basename(imagePath);
 
-    logger.info('Starting image analysis', { fileName, model: this.MODEL });
+    logger.info('Starting image analysis', { fileName, model: this.DEFAULT_MODEL });
 
     const prompt = `Você é uma especialista em análise de imagens para conteúdo de redes sociais.
 
@@ -102,7 +104,8 @@ Seja descritiva, específica e criativa. Retorne APENAS o JSON, sem texto adicio
       },
     ];
 
-    const responseContent = await this.callGrokAPI(messages, opts);
+    const model = await this.getModelForAction('analysis');
+    const responseContent = await this.callGrokAPI(messages, opts, model);
     const result = this.parseAnalysisResponse(responseContent);
 
     logger.info('Image analysis completed successfully', {
@@ -114,14 +117,22 @@ Seja descritiva, específica e criativa. Retorne APENAS o JSON, sem texto adicio
     return result;
   }
 
-  async generateCtaPresente(ctaPrompt: string, ctaLink: string): Promise<{ headline: string; body: string; cta: string }> {
+  async generateCtaPresente(
+    ctaPrompt: string,
+    ctaLink: string,
+    styleGuide?: string   // main channel prompt (user's big style examples)
+  ): Promise<{ headline: string; body: string; cta: string }> {
     this.validateApiKey();
 
-    const prompt = `${ctaPrompt}
+    const styleSection = styleGuide
+      ? `ESTILO GERAL DO CANAL (use como referência principal de tom, emojis, estrutura e ousadia):\n\n${styleGuide}\n\n`
+      : '';
+
+    const prompt = `${styleSection}${ctaPrompt}
 
 ---
 
-TAREFA: Baseado nas instruções e exemplos acima, crie UM NOVO CTA presente ORIGINAL e DIFERENTE dos exemplos, mas seguindo EXATAMENTE o mesmo tom, estilo, vocabulário e nível de ousadia.
+TAREFA: Baseado nas instruções e exemplos acima (priorize o ESTILO GERAL DO CANAL se existir), crie UM NOVO CTA presente ORIGINAL e DIFERENTE dos exemplos, mas seguindo EXATAMENTE o mesmo tom, estilo, vocabulário, emojis, repetições e nível de ousadia.
 
 O link do CTA é: ${ctaLink}
 
@@ -129,13 +140,14 @@ Retorne APENAS um JSON válido com esta estrutura:
 {
   "headline": "HEADLINE NO ESTILO DOS EXEMPLOS",
   "body": "corpo no estilo dos exemplos",
-  "cta": "TEXTO DO CTA NO ESTILO DOS EXEMPLOS"
+  "cta": "TEXTO DO CTA NO ESTILO DOS EXEMPLOS (pode repetir 1 ou 3 vezes se for o padrão do canal)"
 }
 
 Retorne APENAS o JSON, sem markdown, sem texto extra.`;
 
     const messages = [{ role: 'user' as const, content: prompt }];
-    const responseContent = await this.callGrokAPI(messages, { ...DEFAULT_OPTIONS, temperature: 0.9, maxTokens: 500 });
+    const model = await this.getModelForAction('cta');
+    const responseContent = await this.callGrokAPI(messages, { ...DEFAULT_OPTIONS, temperature: 0.9, maxTokens: 500 }, model);
 
     try {
       let clean = responseContent.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
@@ -159,14 +171,21 @@ Retorne APENAS o JSON, sem markdown, sem texto extra.`;
     }
   }
 
-  async generateEnquete(enquetePrompt: string): Promise<{ question: string; options: string[] }> {
+  async generateEnquete(
+    enquetePrompt: string,
+    styleGuide?: string   // main channel prompt for consistent style
+  ): Promise<{ question: string; options: string[] }> {
     this.validateApiKey();
 
-    const prompt = `${enquetePrompt}
+    const styleSection = styleGuide
+      ? `ESTILO GERAL DO CANAL (use como referência principal de tom, emojis, estrutura e ousadia):\n\n${styleGuide}\n\n`
+      : '';
+
+    const prompt = `${styleSection}${enquetePrompt}
 
 ---
 
-TAREFA: Baseado nas instruções e exemplos acima, crie UMA NOVA enquete ORIGINAL e DIFERENTE dos exemplos, mas seguindo EXATAMENTE o mesmo tom, estilo, vocabulário e nível de interação.
+TAREFA: Baseado nas instruções e exemplos acima (priorize o ESTILO GERAL DO CANAL se existir), crie UMA NOVA enquete ORIGINAL e DIFERENTE dos exemplos, mas seguindo EXATAMENTE o mesmo tom, estilo, vocabulário, emojis e nível de interação.
 
 Retorne APENAS um JSON válido com esta estrutura:
 {
@@ -177,7 +196,8 @@ Retorne APENAS um JSON válido com esta estrutura:
 Retorne APENAS o JSON, sem markdown, sem texto extra.`;
 
     const messages = [{ role: 'user' as const, content: prompt }];
-    const responseContent = await this.callGrokAPI(messages, { ...DEFAULT_OPTIONS, temperature: 0.9, maxTokens: 300 });
+    const model = await this.getModelForAction('enquete');
+    const responseContent = await this.callGrokAPI(messages, { ...DEFAULT_OPTIONS, temperature: 0.9, maxTokens: 300 }, model);
 
     try {
       let clean = responseContent.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
@@ -254,7 +274,8 @@ Retorne APENAS o JSON, sem markdown, sem texto extra.`;
     return { base64Image, mimeType };
   }
 
-  private async callGrokAPI(messages: any[], opts: Required<GrokRequestOptions>): Promise<string> {
+  private async callGrokAPI(messages: any[], opts: Required<GrokRequestOptions>, modelOverride?: string): Promise<string> {
+    const model = modelOverride || this.DEFAULT_MODEL;
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= opts.maxRetries; attempt++) {
@@ -262,13 +283,13 @@ Retorne APENAS o JSON, sem markdown, sem texto extra.`;
         logger.info('Calling xAI API', {
           attempt,
           maxRetries: opts.maxRetries,
-          model: this.MODEL,
+          model,
         });
 
         const response = await axios.post(
           `${this.apiUrl}/chat/completions`,
           {
-            model: this.MODEL,
+            model,
             messages,
             temperature: opts.temperature,
             max_tokens: opts.maxTokens,
@@ -379,6 +400,44 @@ Retorne APENAS o JSON, sem markdown, sem texto extra.`;
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Returns the appropriate model for a given action.
+   * Falls back to default if no specific model is configured.
+   */
+  private async getModelForAction(action: 'analysis' | 'preview' | 'enquete' | 'cta'): Promise<string> {
+    try {
+      const prisma = (await import('../utils/prisma')).default;
+
+      const keyMap = {
+        analysis: 'grok_model_analysis',
+        preview: 'grok_model_preview',
+        enquete: 'grok_model_enquete',
+        cta: 'grok_model_cta',
+      };
+
+      const specificKey = keyMap[action];
+      const defaultKey = 'grok_model_default';
+
+      // Try specific model first
+      const specific = await prisma.settings.findUnique({ where: { key: specificKey } });
+      if (specific?.value && specific.value.trim() !== '') {
+        return specific.value.trim();
+      }
+
+      // Fallback to default
+      const fallback = await prisma.settings.findUnique({ where: { key: defaultKey } });
+      if (fallback?.value && fallback.value.trim() !== '') {
+        return fallback.value.trim();
+      }
+
+      // Hardcoded default
+      return this.DEFAULT_MODEL;
+    } catch (error) {
+      logger.warn(`Failed to load model for action ${action}, using default`);
+      return this.DEFAULT_MODEL;
+    }
   }
 }
 

@@ -1,8 +1,33 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
+import ctaEnqueteService from '../services/ctaEnquete.service';
 
 export class CtaPresenteController {
+  // ━━━━━━━━━━━━━━━ Test CTA Presente (Post now) ━━━━━━━━━━━━━━━
+
+  async testNow(req: Request, res: Response) {
+    try {
+      const { channelId } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ error: 'channelId é obrigatório' });
+      }
+
+      const result = await ctaEnqueteService.postCtaPresenteNow(channelId);
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.message });
+      }
+
+      logger.info('CTA Presente posted via test', { channelId });
+      res.json(result);
+    } catch (error: any) {
+      logger.error('Test CTA presente error', { error: error.message });
+      res.status(500).json({ error: 'Erro ao postar CTA presente' });
+    }
+  }
+
   // ━━━━━━━━━━━━━━━ CTA Presente Schedules ━━━━━━━━━━━━━━━
 
   async getSchedules(req: Request, res: Response) {

@@ -28,6 +28,8 @@ export default function SettingsPage() {
     previewPrompt: '',
   });
 
+  const [isCreatingChannel, setIsCreatingChannel] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -95,6 +97,31 @@ export default function SettingsPage() {
       loadData();
     } catch (error: any) {
       toast.error('Erro ao salvar canal');
+    }
+  };
+
+  const handleCreateChannel = async () => {
+    if (!channelForm.name || !channelForm.botToken || !channelForm.chatId || !channelForm.ctaLink || !channelForm.mediaStorageChatId) {
+      toast.error('Preencha Nome, Bot Token, Chat ID, CTA Link e Media Storage Chat ID');
+      return;
+    }
+
+    try {
+      const response = await channelApi.create(channelForm);
+      toast.success('Canal criado com sucesso!');
+      
+      // Refresh channels and select the new one
+      await loadData();
+      
+      // Find the newly created channel (assuming API returns it)
+      const newChannelId = response.data?.id;
+      if (newChannelId) {
+        setSelectedChannelId(newChannelId);
+      }
+      
+      setIsCreatingChannel(false);
+    } catch (error: any) {
+      toast.error('Erro ao criar canal');
     }
   };
 
@@ -177,8 +204,8 @@ export default function SettingsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#f1f5f9]">Configuracoes</h1>
-        <p className="text-sm text-[#64748b] mt-1">Configure canais e sistema de previas</p>
+        <h1 className="text-2xl font-bold text-[#f1f5f9]">Configurações</h1>
+        <p className="text-sm text-[#64748b] mt-1">Gerencie seus canais, prompts e configurações do sistema em um só lugar</p>
       </div>
 
       {/* Tabs */}
@@ -191,7 +218,7 @@ export default function SettingsPage() {
               : 'text-[#64748b] hover:text-[#f1f5f9]'
           }`}
         >
-          Configurar Canal
+          Canais
         </button>
         <button
           onClick={() => setActiveTab('global')}
@@ -201,16 +228,37 @@ export default function SettingsPage() {
               : 'text-[#64748b] hover:text-[#f1f5f9]'
           }`}
         >
-          Configuracoes Globais
+          Avançado
         </button>
       </div>
 
       {/* Channel Config Tab */}
       {activeTab === 'channel' && (
         <div className="space-y-5">
-          {/* Channel Selector */}
+          {/* Channel Selector + Create */}
           <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-5">
-            <h3 className="text-sm font-semibold text-[#f1f5f9] mb-3">Selecionar Canal</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-[#f1f5f9]">Meus Canais</h3>
+              <button
+                onClick={() => {
+                  setIsCreatingChannel(true);
+                  setSelectedChannelId(null);
+                  setChannelForm({
+                    name: '',
+                    botToken: '',
+                    chatId: '',
+                    ctaLink: '',
+                    mediaStorageChatId: '',
+                    ctaPrompt: '',
+                    enquetePrompt: '',
+                    previewPrompt: '',
+                  });
+                }}
+                className="px-4 py-1.5 text-xs font-medium bg-[#3b82f6] text-white rounded-lg hover:bg-[#2563eb] transition-colors"
+              >
+                + Novo Canal
+              </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {channels.map((channel) => (
                 <button
@@ -241,57 +289,106 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
-            {channels.length === 0 && (
+            {channels.length === 0 && !isCreatingChannel && (
               <div className="text-center py-6">
                 <p className="text-[#64748b] text-sm mb-3">Nenhum canal criado ainda</p>
-                <a href="/dashboard/channels" className="text-[#3b82f6] hover:text-[#2563eb] text-sm font-medium">
+                <button 
+                  onClick={() => {
+                    setIsCreatingChannel(true);
+                    setSelectedChannelId(null);
+                    setChannelForm({ name: '', botToken: '', chatId: '', ctaLink: '', mediaStorageChatId: '', ctaPrompt: '', enquetePrompt: '', previewPrompt: '' });
+                  }}
+                  className="text-[#3b82f6] hover:text-[#2563eb] text-sm font-medium"
+                >
                   Criar primeiro canal
-                </a>
+                </button>
               </div>
             )}
           </div>
 
-          {selectedChannel && (
+          {/* Creation Form */}
+          {isCreatingChannel && (
+            <div className="bg-[#111827] border border-[#3b82f6]/40 rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-[#f1f5f9]">Criar Novo Canal</h3>
+                <button 
+                  onClick={() => setIsCreatingChannel(false)} 
+                  className="text-xs text-[#64748b] hover:text-red-400"
+                >
+                  Cancelar
+                </button>
+              </div>
+
+              {/* Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Nome do Canal *</label>
+                  <input type="text" value={channelForm.name} onChange={(e) => setChannelForm({ ...channelForm, name: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm" placeholder="Ex: Victoria VIP" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">CTA Link *</label>
+                  <input type="text" value={channelForm.ctaLink} onChange={(e) => setChannelForm({ ...channelForm, ctaLink: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm" placeholder="https://t.me/seubot" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Bot Token *</label>
+                  <input type="password" value={channelForm.botToken} onChange={(e) => setChannelForm({ ...channelForm, botToken: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm" placeholder="123456:ABC-DEF..." />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Chat ID *</label>
+                  <input type="text" value={channelForm.chatId} onChange={(e) => setChannelForm({ ...channelForm, chatId: e.target.value })} className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm" placeholder="-1001234567890" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Media Storage Chat ID * (obrigatório para enviar imagens)</label>
+                  <input 
+                    type="text" 
+                    value={channelForm.mediaStorageChatId} 
+                    onChange={(e) => setChannelForm({ ...channelForm, mediaStorageChatId: e.target.value })} 
+                    className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-sm" 
+                    placeholder="-1001234567890 (canal privado para guardar as imagens)" 
+                  />
+                  <p className="mt-1 text-[10px] text-amber-400">
+                    Crie um canal privado no Telegram, adicione o bot como admin, e cole o Chat ID aqui. Sem isso você não consegue enviar imagens.
+                  </p>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleCreateChannel}
+                className="w-full py-3 bg-[#3b82f6] text-white rounded-xl font-medium hover:bg-[#2563eb]"
+              >
+                Criar Canal
+              </button>
+            </div>
+          )}
+
+          {!isCreatingChannel && selectedChannel && (
             <>
-              {/* Bot Config */}
-              <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-[#f1f5f9]">Telegram Bot</h3>
+              {/* === DADOS DO CANAL === */}
+              <div className="bg-[#111827] border border-[#1e293b] rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <span className="text-blue-400">📡</span>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-[#f1f5f9]">Dados do Canal</h3>
+                    <p className="text-xs text-[#64748b]">Informações de conexão com o Telegram</p>
+                  </div>
                   <button
                     onClick={handleTestConnection}
-                    className="px-3 py-1.5 border border-[#1e293b] text-[#64748b] rounded-lg text-xs font-medium hover:border-[#3b82f6] hover:text-[#3b82f6] transition-colors"
+                    className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-[#1e293b] hover:border-[#3b82f6] text-[#64748b] hover:text-[#3b82f6] transition-colors"
                   >
-                    Testar Conexao
+                    Testar Conexão
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-[#64748b] mb-1.5">Bot Token</label>
-                    <input
-                      type="password"
-                      value={channelForm.botToken}
-                      onChange={(e) => setChannelForm({ ...channelForm, botToken: e.target.value })}
-                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
-                      placeholder="123456:ABC-DEF..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[#64748b] mb-1.5">Chat ID</label>
-                    <input
-                      type="text"
-                      value={channelForm.chatId}
-                      onChange={(e) => setChannelForm({ ...channelForm, chatId: e.target.value })}
-                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
-                      placeholder="-1001234567890"
-                    />
-                  </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-[#64748b] mb-1.5">Nome do Canal</label>
                     <input
                       type="text"
                       value={channelForm.name}
                       onChange={(e) => setChannelForm({ ...channelForm, name: e.target.value })}
-                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
+                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
                       placeholder="Ex: Victoria VIP"
                     />
                   </div>
@@ -301,62 +398,126 @@ export default function SettingsPage() {
                       type="text"
                       value={channelForm.ctaLink}
                       onChange={(e) => setChannelForm({ ...channelForm, ctaLink: e.target.value })}
-                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
+                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
                       placeholder="https://t.me/seubot?start=start"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#64748b] mb-1.5">Bot Token</label>
+                    <input
+                      type="password"
+                      value={channelForm.botToken}
+                      onChange={(e) => setChannelForm({ ...channelForm, botToken: e.target.value })}
+                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
+                      placeholder="123456:ABC-DEF..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#64748b] mb-1.5">Chat ID</label>
+                    <input
+                      type="text"
+                      value={channelForm.chatId}
+                      onChange={(e) => setChannelForm({ ...channelForm, chatId: e.target.value })}
+                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
+                      placeholder="-1001234567890"
+                    />
+                  </div>
                 </div>
-                <div className="mt-3">
-                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Media Storage Chat ID</label>
+
+                <div className="mt-4">
+                  <label className="block text-xs font-medium text-[#64748b] mb-1.5">Media Storage Chat ID (opcional)</label>
                   <input
                     type="text"
                     value={channelForm.mediaStorageChatId}
                     onChange={(e) => setChannelForm({ ...channelForm, mediaStorageChatId: e.target.value })}
-                    className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
-                    placeholder="-1001234567890 (canal para armazenar midias)"
+                    className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-xl px-4 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
+                    placeholder="-1001234567890"
                   />
-                  <p className="mt-1 text-xs text-[#475569]">Chat ID de um canal/grupo privado onde as imagens serao armazenadas pelo bot</p>
+                  <p className="mt-1 text-[10px] text-[#475569]">Canal privado para armazenar as imagens enviadas pelo bot</p>
                 </div>
               </div>
 
-              {/* Preview Prompt */}
-              <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-5">
-                <h3 className="text-sm font-semibold text-[#f1f5f9] mb-1">Prompt de Preview (Copy da foto)</h3>
-                <p className="text-xs text-[#64748b] mb-3">Defina o perfil da modelo, estilo de escrita, exemplos de copy. Este prompt sera usado para gerar as previas das fotos.</p>
+              {/* Prompt Mestre - Principal (mais visual) */}
+              <div className="bg-[#0f172a] border-2 border-[#3b82f6]/30 rounded-2xl p-6 relative">
+                <div className="absolute -top-3 left-6 bg-[#0f172a] px-3 text-xs font-semibold text-[#3b82f6] tracking-wider">
+                  MAIS IMPORTANTE
+                </div>
+
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-base font-semibold text-[#f1f5f9] flex items-center gap-2">
+                      ✨ Prompt Mestre do Canal
+                    </h3>
+                    <p className="text-sm text-[#64748b] mt-1 max-w-xl">
+                      Este prompt define o tom, estilo e estrutura de tudo que o Grok vai gerar (fotos, vídeos, enquetes e CTA Presente).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const template = `Você é a copywriter oficial deste canal. Sua única missão é replicar com perfeição o estilo dos exemplos que você fornecer.
+
+REGRAS OBRIGATÓRIAS:
+- Headline em MAIÚSCULAS com emojis dos dois lados
+- Corpo curto e direto
+- Termine com pergunta provocante
+- Depois repita o CTA 3 vezes
+
+Cole seus exemplos abaixo:`;
+
+                      setChannelForm({ ...channelForm, previewPrompt: template });
+                      toast.success('Template base carregado! Agora adicione seus exemplos.');
+                    }}
+                    className="shrink-0 px-4 py-2 text-xs font-medium bg-[#3b82f6] text-white rounded-xl hover:bg-[#2563eb] transition-colors"
+                  >
+                    Usar Template Pronto
+                  </button>
+                </div>
+
                 <textarea
                   value={channelForm.previewPrompt}
                   onChange={(e) => setChannelForm({ ...channelForm, previewPrompt: e.target.value })}
-                  rows={8}
-                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
-                  placeholder={`Ex:\nNome: Victoria\nCaracteristicas: Loira, corpo fitness, tatuada, madura\nPersonalidade: Safada, provocante, carinhosa\n\n--- Exemplos de Copy ---\nBUNDÃO EMPINADO 🍑🔥\n\nLoira gostosa de quatro...\nCorpo perfeito rebolando.\n\nQuer ver tudo? 👇\n\n🍑 VER A SAFADA 🍑`}
+                  rows={10}
+                  className="w-full bg-[#020617] border border-[#1e293b] rounded-xl px-4 py-3 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm font-mono leading-relaxed"
+                  placeholder="Cole aqui seu Prompt Mestre com vários exemplos..."
                 />
+
+                <p className="text-[10px] text-[#475569] mt-2">
+                  Dica: Quanto mais exemplos reais você colocar, melhor o Grok vai copiar seu estilo.
+                </p>
               </div>
 
-              {/* CTA Prompt */}
-              <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-5">
-                <h3 className="text-sm font-semibold text-[#f1f5f9] mb-1">Prompt de CTA Presente</h3>
-                <p className="text-xs text-[#64748b] mb-3">Defina como a IA deve gerar as mensagens de CTA presente. Inclua nome, personalidade e exemplos.</p>
-                <textarea
-                  value={channelForm.ctaPrompt}
-                  onChange={(e) => setChannelForm({ ...channelForm, ctaPrompt: e.target.value })}
-                  rows={8}
-                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
-                  placeholder={`Ex:\nNome: Victoria\nPersonalidade: Safada e carinhosa\n\n--- Exemplos ---\nEU AINDA TO AQUI 🎁\n\nVim te dar um presentinho...\nAbre antes que eu mude de ideia 😈\n\n🎁 RESGATAR PRESENTE`}
-                />
-              </div>
+              {/* Prompts Avançados (visualmente secundários) */}
+              <details className="bg-[#111827] border border-[#1e293b] rounded-2xl p-6 group">
+                <summary className="text-sm font-semibold text-[#f1f5f9] cursor-pointer flex items-center gap-2">
+                  Prompts Avançados (opcional)
+                  <span className="text-[10px] ml-2 px-2 py-0.5 rounded-full bg-white/5 text-[#64748b]">Só use se quiser sobrescrever o Mestre</span>
+                </summary>
 
-              {/* Enquete Prompt */}
-              <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-5">
-                <h3 className="text-sm font-semibold text-[#f1f5f9] mb-1">Prompt de Enquete</h3>
-                <p className="text-xs text-[#64748b] mb-3">Defina como a IA deve gerar as enquetes. Inclua nome, personalidade e exemplos.</p>
-                <textarea
-                  value={channelForm.enquetePrompt}
-                  onChange={(e) => setChannelForm({ ...channelForm, enquetePrompt: e.target.value })}
-                  rows={8}
-                  className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
-                  placeholder={`Ex:\nNome: Victoria\nPersonalidade: Provocante e interativa\n\n--- Exemplos ---\nONDE VC GOZARIA EM MIM? 💦\n- Na boca 👄\n- No corpo 🍑\n- Dentro 😈`}
-                />
-              </div>
+                <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-[#0a0e1a] border border-[#1e293b] rounded-xl p-4">
+                    <div className="text-xs font-semibold text-amber-400 mb-2">CTA Presente</div>
+                    <textarea
+                      value={channelForm.ctaPrompt}
+                      onChange={(e) => setChannelForm({ ...channelForm, ctaPrompt: e.target.value })}
+                      rows={4}
+                      className="w-full bg-transparent border-none p-0 text-[#f1f5f9] placeholder-[#475569] focus:outline-none text-xs resize-y"
+                      placeholder="Deixe vazio para usar o Prompt Mestre"
+                    />
+                  </div>
+
+                  <div className="bg-[#0a0e1a] border border-[#1e293b] rounded-xl p-4">
+                    <div className="text-xs font-semibold text-purple-400 mb-2">Enquetes</div>
+                    <textarea
+                      value={channelForm.enquetePrompt}
+                      onChange={(e) => setChannelForm({ ...channelForm, enquetePrompt: e.target.value })}
+                      rows={4}
+                      className="w-full bg-transparent border-none p-0 text-[#f1f5f9] placeholder-[#475569] focus:outline-none text-xs resize-y"
+                      placeholder="Deixe vazio para usar o Prompt Mestre"
+                    />
+                  </div>
+                </div>
+              </details>
 
               {/* Schedule Times */}
               <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-5">
@@ -444,7 +605,8 @@ export default function SettingsPage() {
           {/* Grok API */}
           <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-5">
             <h3 className="text-sm font-semibold text-[#f1f5f9] mb-4">Grok API (xAI)</h3>
-            <div>
+            
+            <div className="mb-5">
               <label className="block text-xs font-medium text-[#64748b] mb-1.5">API Key</label>
               <input
                 type="password"
@@ -454,7 +616,74 @@ export default function SettingsPage() {
                 className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] placeholder-[#475569] focus:border-[#3b82f6] focus:outline-none text-sm"
                 placeholder="xai-..."
               />
-              <p className="mt-1.5 text-xs text-[#475569]">Usada para analise de imagens e geracao de previas em todos os canais</p>
+            </div>
+
+            {/* Model Selection */}
+            <div>
+              <h4 className="text-sm font-semibold text-[#f1f5f9] mb-3">Modelos do Grok</h4>
+              <p className="text-xs text-[#64748b] mb-4">Escolha qual modelo usar em cada tipo de ação. Deixe em branco para usar o modelo padrão.</p>
+              <p className="text-[10px] text-[#475569] mb-3">Modelos comuns: <code>grok-4-1-fast-non-reasoning</code>, <code>grok-4</code>, <code>grok-3</code></p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-[#64748b] mb-1">Modelo Padrão (Fallback)</label>
+                  <input
+                    type="text"
+                    value={settings.grok_model_default || ''}
+                    onChange={(e) => setSettings({ ...settings, grok_model_default: e.target.value })}
+                    onBlur={(e) => handleUpdateSetting('grok_model_default', e.target.value)}
+                    className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2 text-[#f1f5f9] text-sm"
+                    placeholder="grok-4-1-fast-non-reasoning"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-[#64748b] mb-1">Análise de Imagens</label>
+                    <input
+                      type="text"
+                      value={settings.grok_model_analysis || ''}
+                      onChange={(e) => setSettings({ ...settings, grok_model_analysis: e.target.value })}
+                      onBlur={(e) => handleUpdateSetting('grok_model_analysis', e.target.value)}
+                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2 text-[#f1f5f9] text-sm"
+                      placeholder="grok-4-1-fast-non-reasoning"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#64748b] mb-1">Geração de Cópias (Preview)</label>
+                    <input
+                      type="text"
+                      value={settings.grok_model_preview || ''}
+                      onChange={(e) => setSettings({ ...settings, grok_model_preview: e.target.value })}
+                      onBlur={(e) => handleUpdateSetting('grok_model_preview', e.target.value)}
+                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2 text-[#f1f5f9] text-sm"
+                      placeholder="grok-4-1-fast-non-reasoning"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#64748b] mb-1">Enquetes</label>
+                    <input
+                      type="text"
+                      value={settings.grok_model_enquete || ''}
+                      onChange={(e) => setSettings({ ...settings, grok_model_enquete: e.target.value })}
+                      onBlur={(e) => handleUpdateSetting('grok_model_enquete', e.target.value)}
+                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2 text-[#f1f5f9] text-sm"
+                      placeholder="grok-4-1-fast-non-reasoning"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#64748b] mb-1">CTA Presente</label>
+                    <input
+                      type="text"
+                      value={settings.grok_model_cta || ''}
+                      onChange={(e) => setSettings({ ...settings, grok_model_cta: e.target.value })}
+                      onBlur={(e) => handleUpdateSetting('grok_model_cta', e.target.value)}
+                      className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2 text-[#f1f5f9] text-sm"
+                      placeholder="grok-4-1-fast-non-reasoning"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

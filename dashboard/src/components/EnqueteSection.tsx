@@ -13,6 +13,7 @@ interface EnqueteSchedule {
 export default function EnqueteSection({ channelId, channelName }: { channelId: string; channelName: string }) {
   const [schedules, setSchedules] = useState<EnqueteSchedule[]>([]);
   const [newTime, setNewTime] = useState('');
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -49,10 +50,31 @@ export default function EnqueteSection({ channelId, channelName }: { channelId: 
     }
   };
 
+  const handleTestNow = async () => {
+    setTesting(true);
+    try {
+      await enqueteScheduleApi.testNow(channelId);
+      toast.success('Enquete sendo gerada agora!');
+    } catch (error) {
+      toast.error('Erro ao testar enquete');
+    } finally {
+      setTimeout(() => setTesting(false), 3000);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-5">
-        <h3 className="text-sm font-semibold text-[#f1f5f9] mb-1">Horarios para Enquetes — {channelName}</h3>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold text-[#f1f5f9]">Horarios para Enquetes — {channelName}</h3>
+          <button
+            onClick={handleTestNow}
+            disabled={testing}
+            className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-medium hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+          >
+            {testing ? 'Gerando...' : 'TESTAR AGORA'}
+          </button>
+        </div>
         <p className="text-xs text-[#64748b] mb-3">A IA vai gerar enquetes originais automaticamente nos horarios configurados, usando o prompt definido no canal.</p>
         <div className="flex gap-2 mb-3">
           <input

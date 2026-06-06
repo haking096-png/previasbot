@@ -88,6 +88,12 @@ export const postApi = {
   cancel: (id: string) => api.post(`/api/posts/${id}/cancel`),
   reschedule: (id: string, scheduledFor: string) =>
     api.post(`/api/posts/${id}/reschedule`, { scheduledFor }),
+  reorder: (items: { id: string; order: number }[]) =>
+    api.post('/api/posts/reorder', { items }),
+  bulkDelete: (ids: string[]) =>
+    api.post('/api/posts/bulk-delete', { ids }),
+  regenerate: (id: string) =>
+    api.post(`/api/posts/${id}/regenerate`),
 };
 
 export const channelApi = {
@@ -103,12 +109,26 @@ export const ctaPresenteScheduleApi = {
   getAll: (channelId: string) => api.get('/api/cta-presente-schedules', { params: { channelId } }),
   create: (time: string, channelId: string) => api.post('/api/cta-presente-schedules', { time, enabled: true, channelId }),
   delete: (id: string) => api.delete(`/api/cta-presente-schedules/${id}`),
+  testNow: (channelId: string) => api.post('/api/cta-presente/test', { channelId }),
 };
 
 export const enqueteScheduleApi = {
   getAll: (channelId: string) => api.get('/api/enquete-schedules', { params: { channelId } }),
   create: (time: string, channelId: string) => api.post('/api/enquete-schedules', { time, enabled: true, channelId }),
   delete: (id: string) => api.delete(`/api/enquete-schedules/${id}`),
+  testNow: (channelId: string) => api.post('/api/enquete/test', { channelId }),
+};
+
+export const templateApi = {
+  getAll: (channelId: string, type?: string) =>
+    api.get('/api/templates', { params: { channelId, type } }),
+  create: (data: any) => api.post('/api/templates', data),
+  update: (id: string, data: any) => api.put(`/api/templates/${id}`, data),
+  delete: (id: string) => api.delete(`/api/templates/${id}`),
+  reorder: (items: { id: string; order: number }[]) =>
+    api.post('/api/templates/reorder', { items }),
+  generate: (templateId: string, context: any) =>
+    api.post('/api/templates/generate', { templateId, context }),
 };
 
 export default api;

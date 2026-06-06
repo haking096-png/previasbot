@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 import { generateQueue } from '../utils/queue';
+import previewService from '../services/preview.service';
 
 export class PreviewController {
   async getAll(req: Request, res: Response) {
@@ -151,6 +152,39 @@ export class PreviewController {
     } catch (error: any) {
       logger.error('Regenerate preview error', { error: error.message });
       res.status(500).json({ error: 'Failed to regenerate preview' });
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━ Generate from Video Description ━━━━━━━━━━━━━━━
+
+  async generateFromVideo(req: Request, res: Response) {
+    try {
+      const { description, channelId, ctaLink } = req.body;
+
+      if (!description) {
+        return res.status(400).json({ error: 'description é obrigatória' });
+      }
+
+      // Get CTA link from channel if not provided
+      let effectiveCtaLink = ctaLink;
+      if (!effectiveCtaLink && channelId) {
+        const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+        if (channel?.ctaLink) {
+          effectiveCtaLink = channel.ctaLink;
+        }
+      }
+
+      const preview = await previewService.generateFromVideoDescription(
+        description,
+        effectiveCtaLink || '',
+        channelId
+      );
+
+      logger.info('Video preview generated', { channelId });
+      res.json(preview);
+    } catch (error: any) {
+      logger.error('Generate from video error', { error: error.message });
+      res.status(500).json({ error: 'Erro ao gerar prévia do vídeo' });
     }
   }
 }

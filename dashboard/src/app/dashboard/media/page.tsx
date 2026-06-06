@@ -82,7 +82,9 @@ export default function MediaPage() {
         loadMedia();
       }, 3000);
     } catch (error: any) {
-      toast.error('Erro ao enviar imagens');
+      const errorMsg = error.response?.data?.error || 'Erro ao enviar imagens';
+      toast.error(errorMsg);
+      console.error('Upload error:', error.response?.data);
     } finally {
       setUploading(false);
     }

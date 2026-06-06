@@ -15,6 +15,8 @@ import postController from './controllers/post.controller';
 import channelController from './controllers/channel.controller';
 import ctaPresenteController from './controllers/ctaPresente.controller';
 import enqueteController from './controllers/enquete.controller';
+import videoController from './controllers/video.controller';
+import templateController from './controllers/template.controller';
 
 const app = express();
 
@@ -78,6 +80,67 @@ app.put('/api/previews/:id', previewController.update.bind(previewController));
 app.post('/api/previews/:id/approve', previewController.approve.bind(previewController));
 app.post('/api/previews/:id/reject', previewController.reject.bind(previewController));
 app.post('/api/previews/:id/regenerate', previewController.regenerate.bind(previewController));
+app.post('/api/previews/from-video', previewController.generateFromVideo.bind(previewController));
+
+// Test preview generation with custom prompt (used by dashboard "Testar Prompt")
+app.post('/api/previews/test', async (req, res) => {
+  try {
+    const { prompt, description, ctaLink } = req.body;
+    if (!prompt || !description) {
+      return res.status(400).json({ error: 'prompt and description required' });
+    }
+
+    // Lightweight direct call to Grok using the same pattern as the service
+    const axios = require('axios');
+    const apiKey = process.env.GROK_API_KEY;
+    const apiUrl = 'https://api.x.ai/v1';
+
+    const userPrompt = `${prompt}
+
+---
+
+TAREFA: Gere uma prévia no estilo exato dos exemplos acima usando esta descrição:
+${description}
+
+Retorne APENAS JSON:
+{
+  "headline": "...",
+  "body": "...",
+  "preCta": "...",
+  "ctaLines": ["...", "...", "..."]
+}`;
+
+    const response = await axios.post(`${apiUrl}/chat/completions`, {
+      model: 'grok-4-1-fast-non-reasoning',
+      messages: [
+        { role: 'system', content: 'Você é uma copywriter que replica estilos com perfeição. Responda só com JSON.' },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.85,
+      max_tokens: 600
+    }, {
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      timeout: 60000
+    });
+
+    const text = response.data.choices[0]?.message?.content || '';
+    let clean = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    const jsonMatch = clean.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+
+    const ctaLines = Array.isArray(parsed.ctaLines) ? parsed.ctaLines.slice(0, 3) : ['QUERO VER', 'QUERO VER', 'QUERO VER'];
+
+    res.json({
+      headline: parsed.headline || 'PRÉVIA',
+      body: parsed.body || description,
+      preCta: parsed.preCta || 'Quer ver? 👇',
+      cta: ctaLines.join('\n'),
+    });
+  } catch (error: any) {
+    console.error('Test preview error', error?.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to generate test preview' });
+  }
+});
 
 // Schedules
 app.get('/api/schedules', scheduleController.getAll.bind(scheduleController));
@@ -92,6 +155,9 @@ app.post('/api/posts/schedule', postController.schedule.bind(postController));
 app.post('/api/posts/:id/publish-now', postController.publishNow.bind(postController));
 app.post('/api/posts/:id/cancel', postController.cancel.bind(postController));
 app.post('/api/posts/:id/reschedule', postController.reschedule.bind(postController));
+app.post('/api/posts/reorder', postController.reorder.bind(postController));
+app.post('/api/posts/bulk-delete', postController.bulkDelete.bind(postController));
+app.post('/api/posts/:id/regenerate', postController.regeneratePreview.bind(postController));
 
 // Channels
 app.get('/api/channels', channelController.getAll.bind(channelController));
@@ -105,11 +171,24 @@ app.post('/api/channels/:id/test', channelController.testConnection.bind(channel
 app.get('/api/cta-presente-schedules', ctaPresenteController.getSchedules.bind(ctaPresenteController));
 app.post('/api/cta-presente-schedules', ctaPresenteController.createSchedule.bind(ctaPresenteController));
 app.delete('/api/cta-presente-schedules/:id', ctaPresenteController.deleteSchedule.bind(ctaPresenteController));
+app.post('/api/cta-presente/test', ctaPresenteController.testNow.bind(ctaPresenteController));
 
 // Enquete Schedules
 app.get('/api/enquete-schedules', enqueteController.getSchedules.bind(enqueteController));
 app.post('/api/enquete-schedules', enqueteController.createSchedule.bind(enqueteController));
 app.delete('/api/enquete-schedules/:id', enqueteController.deleteSchedule.bind(enqueteController));
+app.post('/api/enquete/test', enqueteController.testNow.bind(enqueteController));
+
+// Video Scheduling
+app.post('/api/videos/schedule', videoController.scheduleVideo.bind(videoController));
+
+// Templates
+app.get('/api/templates', templateController.getAll.bind(templateController));
+app.post('/api/templates', templateController.create.bind(templateController));
+app.put('/api/templates/:id', templateController.update.bind(templateController));
+app.delete('/api/templates/:id', templateController.delete.bind(templateController));
+app.post('/api/templates/reorder', templateController.reorder.bind(templateController));
+app.post('/api/templates/generate', templateController.generateFromTemplate.bind(templateController));
 
 app.use(errorHandler);
 

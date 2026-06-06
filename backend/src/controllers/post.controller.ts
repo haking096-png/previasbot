@@ -270,6 +270,82 @@ export class PostController {
       res.status(500).json({ error: 'Failed to reschedule post' });
     }
   }
+
+  // Reorder posts (for drag and drop)
+  async reorder(req: Request, res: Response) {
+    try {
+      const { items } = req.body; // [{ id, order }]
+
+      if (!Array.isArray(items)) {
+        return res.status(400).json({ error: 'items array is required' });
+      }
+
+      await Promise.all(
+        items.map((item: { id: string; order: number }) =>
+          prisma.post.update({
+            where: { id: item.id },
+            data: { order: item.order },
+          })
+        )
+      );
+
+      res.json({ message: 'Posts reordered successfully' });
+    } catch (error: any) {
+      logger.error('Reorder posts error', { error: error.message });
+      res.status(500).json({ error: 'Failed to reorder posts' });
+    }
+  }
+
+  // Bulk delete
+  async bulkDelete(req: Request, res: Response) {
+    try {
+      const { ids } = req.body;
+
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: 'ids array is required' });
+      }
+
+      await prisma.post.deleteMany({
+        where: { id: { in: ids } },
+      });
+
+      logger.info('Posts bulk deleted', { count: ids.length });
+      res.json({ message: `${ids.length} post(s) deleted`, count: ids.length });
+    } catch (error: any) {
+      logger.error('Bulk delete posts error', { error: error.message });
+      res.status(500).json({ error: 'Failed to delete posts' });
+    }
+  }
+
+  // Regenerate preview
+  async regeneratePreview(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+
+      const post = await prisma.post.findUnique({
+        where: { id },
+        include: { mediaItem: true, preview: true },
+      });
+
+      if (!post) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      // Add to generate queue
+      const { generateQueue } = await import('../utils/queue');
+      await generateQueue.add('generate-preview', {
+        mediaItemId: post.mediaItemId,
+        channelId: post.channelId,
+        postId: post.id,
+      });
+
+      logger.info('Preview regeneration triggered', { postId: post.id });
+      res.json({ message: 'Preview regeneration triggered' });
+    } catch (error: any) {
+      logger.error('Regenerate preview error', { error: error.message });
+      res.status(500).json({ error: 'Failed to regenerate preview' });
+    }
+  }
 }
 
 export default new PostController();
