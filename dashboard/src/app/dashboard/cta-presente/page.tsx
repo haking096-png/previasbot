@@ -6,6 +6,7 @@ import { useChannelStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import GenerationLoader from '@/components/ui/GenerationLoader';
 
 interface Template {
   id: string;
@@ -30,6 +31,8 @@ export default function CtaPresentePage() {
   const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
+  const [testStatus, setTestStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState<string>('');
   const [editing, setEditing] = useState<Template | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newTime, setNewTime] = useState('');
@@ -81,15 +84,42 @@ export default function CtaPresentePage() {
   };
 
   const handleTest = async () => {
-    if (!selectedChannelId) return;
+    if (!selectedChannelId) {
+      toast.error('Selecione um canal primeiro');
+      return;
+    }
+
     setTesting(true);
+    setTestStatus('generating');
+    setTestMessage('Gerando CTA com IA...');
+
     try {
-      await ctaPresenteScheduleApi.testNow(selectedChannelId);
-      toast.success('CTA Presente sendo gerado!');
-    } catch (error) {
-      toast.error('Erro ao testar');
+      const res = await ctaPresenteScheduleApi.testNow(selectedChannelId);
+      const data = res.data;
+
+      if (data?.success) {
+        setTestStatus('success');
+        const msg = data?.data?.headline ? `CTA postado: "${data.data.headline}"` : 'CTA Presente postado!';
+        setTestMessage(msg);
+        toast.success(msg);
+
+        setTimeout(() => setTestStatus('idle'), 4000);
+      } else {
+        setTestStatus('error');
+        setTestMessage(data?.message || 'Erro ao postar CTA');
+        toast.error(data?.message || 'Erro ao postar CTA');
+
+        setTimeout(() => setTestStatus('idle'), 5000);
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.error || error.response?.data?.message || 'Erro ao postar CTA';
+      setTestStatus('error');
+      setTestMessage(message);
+      toast.error(message, { duration: 6000 });
+
+      setTimeout(() => setTestStatus('idle'), 5000);
     } finally {
-      setTimeout(() => setTesting(false), 3000);
+      setTesting(false);
     }
   };
 
@@ -156,6 +186,13 @@ export default function CtaPresentePage() {
 
   return (
     <div className="p-6 max-w-7xl">
+      {/* Generation Status Banner */}
+      {testStatus !== 'idle' && (
+        <div className="mb-4 bg-[#0d1117] border border-cyan-500/30 rounded-xl p-4">
+          <GenerationLoader status={testStatus} message={testMessage} size="sm" />
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">CTA Presente</h1>

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { postApi, previewApi, ctaPresenteScheduleApi, enqueteScheduleApi } from '@/lib/api';
+import { postApi, previewApi, ctaPresenteScheduleApi, enqueteScheduleApi, mediaApi, channelApi } from '@/lib/api';
 import { useChannelStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 import { format, isToday, isTomorrow, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import GenerationLoader from '@/components/ui/GenerationLoader';
 
 type ViewMode = 'kanban' | 'list';
 
@@ -24,20 +25,40 @@ export default function PostsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showQuickPost, setShowQuickPost] = useState<'CTA' | 'ENQUETE' | null>(null);
-  const { selectedChannelId } = useChannelStore();
+  const { selectedChannelId, setSelectedChannelId } = useChannelStore();
+  const [channels, setChannels] = useState<any[]>([]);
+  const [actionStatus, setActionStatus] = useState<{
+    type: 'cta' | 'enquete' | 'regenerate' | null;
+    status: 'generating' | 'success' | 'error' | 'idle';
+    message?: string;
+  }>({ type: null, status: 'idle' });
   const dragItem = useRef<string | null>(null);
+
+  useEffect(() => {
+    loadChannels();
+  }, []);
 
   useEffect(() => {
     loadPosts();
   }, [selectedChannelId]);
+
+  const loadChannels = async () => {
+    try {
+      const res = await channelApi.getAll();
+      setChannels(res.data || []);
+      if (!selectedChannelId && res.data?.length > 0) {
+        setSelectedChannelId(res.data[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading channels:', error);
+    }
+  };
 
   const loadPosts = async () => {
     setLoading(true);
     try {
       const response = await postApi.getAll(selectedChannelId || undefined);
       const sorted = (response.data || []).sort((a: any, b: any) => {
-        // Pending posts by order (manual), then by scheduledFor
         if (a.status === 'SCHEDULED' && b.status === 'SCHEDULED') {
           return a.order - b.order;
         }
@@ -90,7 +111,6 @@ export default function PostsPage() {
     const sourceId = dragItem.current;
     dragItem.current = null;
 
-    // Reorder posts
     const newPosts = [...posts];
     const sourceIndex = newPosts.findIndex(p => p.id === sourceId);
     const targetIndex = newPosts.findIndex(p => p.id === targetId);
@@ -100,7 +120,6 @@ export default function PostsPage() {
     const [moved] = newPosts.splice(sourceIndex, 1);
     newPosts.splice(targetIndex, 0, moved);
 
-    // Update orders
     newPosts.forEach((p, i) => { p.order = i; });
     setPosts(newPosts);
 
@@ -113,7 +132,7 @@ export default function PostsPage() {
     }
   };
 
-  // ━━━━━━━━━━━━━━━ Bulk delete ━━━━━━━━━━━━━━━
+  // ━━━━━━━━━━━━━━━ Bulk actions ━━━━━━━━━━━━━━━
 
   const handleClearSelected = async () => {
     if (selectedIds.size === 0) {
@@ -158,49 +177,108 @@ export default function PostsPage() {
     if (!confirm('Excluir permanentemente este post?')) return;
     try {
       await postApi.bulkDelete([id]);
-      toast.success('Post excluído');
+      toast.success('Post excluído!');
       loadPosts();
     } catch (error) {
       toast.error('Erro ao excluir');
     }
   };
 
-  // ━━━━━━━━━━━━━━━ Quick post (CTA/Enquete) ━━━━━━━━━━━━━━━
+  // ━━━━━━━━━━━━━━━ Quick post (CTA/Enquete) with LOADER ━━━━━━━━━━━━━━━
 
   const handleQuickPost = async (type: 'CTA' | 'ENQUETE') => {
     if (!selectedChannelId) {
       toast.error('Selecione um canal primeiro');
       return;
     }
+
+    setActionStatus({
+      type: type === 'CTA' ? 'cta' : 'enquete',
+      status: 'generating',
+      message: type === 'CTA' ? 'Gerando CTA Presente...' : 'Gerando Enquete...',
+    });
+
     try {
-      if (type === 'CTA') {
-        const res = await ctaPresenteScheduleApi.testNow(selectedChannelId);
-        const data = res.data;
-        if (data?.success) {
-          if (data?.data?.headline) {
-            toast.success(`CTA postado! "${data.data.headline}"`, { duration: 4000 });
-          } else {
-            toast.success('CTA Presente postado!');
-          }
-        } else {
-          toast.error(data?.message || 'Erro ao postar CTA');
-        }
+      const apiCall = type === 'CTA' ? ctaPresenteScheduleApi.testNow : enqueteScheduleApi.testNow;
+      const res = await apiCall(selectedChannelId);
+      const data = res.data;
+
+      if (data?.success) {
+        const successMessage = type === 'CTA'
+          ? `CTA postado: "${data?.data?.headline}"`
+          : `Enquete postada: "${data?.data?.question}"`;
+
+        setActionStatus({
+          type: type === 'CTA' ? 'cta' : 'enquete',
+          status: 'success',
+          message: successMessage,
+        });
+
+        setTimeout(() => {
+          setActionStatus({ type: null, status: 'idle' });
+        }, 4000);
       } else {
-        const res = await enqueteScheduleApi.testNow(selectedChannelId);
-        const data = res.data;
-        if (data?.success) {
-          if (data?.data?.question) {
-            toast.success(`Enquete postada! "${data.data.question}"`, { duration: 4000 });
-          } else {
-            toast.success('Enquete postada!');
-          }
-        } else {
-          toast.error(data?.message || 'Erro ao postar enquete');
-        }
+        setActionStatus({
+          type: type === 'CTA' ? 'cta' : 'enquete',
+          status: 'error',
+          message: data?.message || `Erro ao postar ${type}`,
+        });
+        toast.error(data?.message || `Erro ao postar ${type}`);
+
+        setTimeout(() => {
+          setActionStatus({ type: null, status: 'idle' });
+        }, 5000);
       }
     } catch (error: any) {
       const message = error.response?.data?.error || error.response?.data?.message || `Erro ao postar ${type}`;
-      toast.error(message, { duration: 5000 });
+      setActionStatus({
+        type: type === 'CTA' ? 'cta' : 'enquete',
+        status: 'error',
+        message,
+      });
+      toast.error(message, { duration: 6000 });
+
+      setTimeout(() => {
+        setActionStatus({ type: null, status: 'idle' });
+      }, 5000);
+    }
+  };
+
+  // ━━━━━━━━━━━━━━━ Regenerate preview with LOADER ━━━━━━━━━━━━━━━
+
+  const handleRegenerate = async (postId: string) => {
+    if (!confirm('Regenerar a prévia com IA? A versão atual será substituída.')) return;
+
+    setActionStatus({
+      type: 'regenerate',
+      status: 'generating',
+      message: 'Regenerando prévia com IA...',
+    });
+
+    try {
+      await postApi.regenerate(postId);
+      setActionStatus({
+        type: 'regenerate',
+        status: 'success',
+        message: 'Regeneração iniciada! Aguarde alguns segundos.',
+      });
+      toast.success('Regenerando! Aguarde alguns segundos...');
+
+      setTimeout(async () => {
+        await loadPosts();
+        setActionStatus({ type: null, status: 'idle' });
+      }, 5000);
+    } catch (error: any) {
+      setActionStatus({
+        type: 'regenerate',
+        status: 'error',
+        message: 'Erro ao regenerar',
+      });
+      toast.error('Erro ao regenerar');
+
+      setTimeout(() => {
+        setActionStatus({ type: null, status: 'idle' });
+      }, 4000);
     }
   };
 
@@ -219,14 +297,29 @@ export default function PostsPage() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0a0e1a]">
-        <div className="animate-spin rounded-full h-10 w-10 border-2 border-cyan-500 border-t-transparent" />
+      <div className="h-screen flex items-center justify-center">
+        <GenerationLoader status="generating" message="Carregando posts..." size="lg" />
       </div>
     );
   }
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[#0a0e1a]">
+      {/* Generation Status Banner */}
+      {actionStatus.status !== 'idle' && actionStatus.type && (
+        <div className={`fixed top-20 right-6 z-50 bg-[#0d1117] border rounded-xl p-4 shadow-2xl ${
+          actionStatus.status === 'generating' ? 'border-cyan-500/30' :
+          actionStatus.status === 'success' ? 'border-emerald-500/30' :
+          'border-red-500/30'
+        }`}>
+          <GenerationLoader
+            status={actionStatus.status}
+            message={actionStatus.message}
+            size="sm"
+          />
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-[#1f2937] bg-[#0a0e1a]">
         <div className="flex items-center justify-between mb-3">
@@ -241,7 +334,8 @@ export default function PostsPage() {
             {/* Quick Post Buttons */}
             <button
               onClick={() => handleQuickPost('CTA')}
-              className="px-3 py-2 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-colors flex items-center gap-1.5"
+              disabled={actionStatus.status === 'generating'}
+              className="px-3 py-2 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
@@ -250,7 +344,8 @@ export default function PostsPage() {
             </button>
             <button
               onClick={() => handleQuickPost('ENQUETE')}
-              className="px-3 py-2 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 transition-colors flex items-center gap-1.5"
+              disabled={actionStatus.status === 'generating'}
+              className="px-3 py-2 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -331,12 +426,38 @@ export default function PostsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Channel selector banner if no channels */}
+        {channels.length === 0 && (
+          <div className="mb-6 bg-amber-500/5 border border-amber-500/20 rounded-xl p-5 flex items-start gap-4">
+            <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-amber-300 mb-1">Nenhum canal configurado</h3>
+              <p className="text-xs text-amber-400/80 mb-3">
+                Você precisa criar pelo menos um canal para postar, gerar prévias e gerenciar posts.
+              </p>
+              <a
+                href="/dashboard/channels"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-colors"
+              >
+                Criar canal agora →
+              </a>
+            </div>
+          </div>
+        )}
+
         {filteredPosts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500">
             <svg className="w-12 h-12 mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
             <p className="text-sm">Nenhum post encontrado</p>
+            {channels.length > 0 && (
+              <p className="text-xs text-gray-600 mt-1">Faça upload de imagens para gerar posts automaticamente</p>
+            )}
           </div>
         ) : viewMode === 'list' ? (
           <ListView
@@ -376,6 +497,8 @@ export default function PostsPage() {
           onClose={() => setSelectedPost(null)}
           onRefresh={loadPosts}
           onDelete={() => { handleDelete(selectedPost.id); setSelectedPost(null); }}
+          onRegenerate={handleRegenerate}
+          regenerating={actionStatus.type === 'regenerate' && actionStatus.status === 'generating'}
           apiUrl={process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}
         />
       )}
@@ -695,12 +818,16 @@ function PostDetailModal({
   onClose,
   onRefresh,
   onDelete,
+  onRegenerate,
+  regenerating,
   apiUrl,
 }: {
   post: any;
   onClose: () => void;
   onRefresh: () => void;
   onDelete: () => void;
+  onRegenerate: (id: string) => void;
+  regenerating: boolean;
   apiUrl: string;
 }) {
   const [editing, setEditing] = useState(false);
@@ -712,36 +839,18 @@ function PostDetailModal({
     buttonText: post.preview?.buttonText || '',
     buttonUrl: post.preview?.buttonUrl || '',
   });
-  const [regenerating, setRegenerating] = useState(false);
 
   const status = STATUS_CONFIG[post.status] || STATUS_CONFIG.SCHEDULED;
 
   const handleSaveEdit = async () => {
     try {
       await previewApi.update(post.preview.id, editData);
-      toast.success('Preview atualizado');
+      toast.success('Preview atualizado!');
       setEditing(false);
       onRefresh();
       onClose();
     } catch (error) {
       toast.error('Erro ao salvar');
-    }
-  };
-
-  const handleRegenerate = async () => {
-    if (!confirm('Regenerar a prévia com IA? A versão atual será substituída.')) return;
-    setRegenerating(true);
-    try {
-      await postApi.regenerate(post.id);
-      toast.success('Regeneração iniciada! Aguarde alguns segundos.');
-      setTimeout(() => {
-        setRegenerating(false);
-        onRefresh();
-        onClose();
-      }, 5000);
-    } catch (error) {
-      toast.error('Erro ao regenerar');
-      setRegenerating(false);
     }
   };
 
@@ -875,87 +984,86 @@ function PostDetailModal({
           <div>
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Ações</h3>
 
-            <div className="space-y-2">
-              {!editing ? (
-                <>
-                  <button
-                    onClick={() => setEditing(true)}
-                    className="w-full px-4 py-2.5 bg-cyan-500 text-white rounded-lg text-sm font-medium hover:bg-cyan-600 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Editar Preview
-                  </button>
-
-                  <button
-                    onClick={handleRegenerate}
-                    disabled={regenerating}
-                    className="w-full px-4 py-2.5 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {regenerating ? (
-                      <>
-                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Regenerando...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Regenerar com IA
-                      </>
-                    )}
-                  </button>
-
-                  {post.status === 'SCHEDULED' && (
+            {/* Status info */}
+            {regenerating ? (
+              <div className="mb-4 p-4 bg-[#0a0e1a] border border-cyan-500/30 rounded-lg">
+                <GenerationLoader status="generating" message="Regenerando com IA..." size="md" />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {!editing ? (
+                  <>
                     <button
-                      onClick={async () => {
-                        try {
-                          await postApi.publishNow(post.id);
-                          toast.success('Publicando agora!');
-                          onRefresh();
-                          onClose();
-                        } catch (error) {
-                          toast.error('Erro ao publicar');
-                        }
-                      }}
-                      className="w-full px-4 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
+                      onClick={() => setEditing(true)}
+                      className="w-full px-4 py-2.5 bg-cyan-500 text-white rounded-lg text-sm font-medium hover:bg-cyan-600 transition-colors flex items-center justify-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.651z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      Publicar Agora
+                      Editar Preview
                     </button>
-                  )}
 
-                  <button
-                    onClick={onDelete}
-                    className="w-full px-4 py-2.5 border border-red-500/30 text-red-400 rounded-lg text-sm font-medium hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Excluir Post
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={handleSaveEdit}
-                    className="w-full px-4 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors"
-                  >
-                    Salvar Alterações
-                  </button>
-                  <button
-                    onClick={() => setEditing(false)}
-                    className="w-full px-4 py-2.5 border border-[#1f2937] text-gray-400 rounded-lg text-sm font-medium hover:border-gray-600 hover:text-white transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                </>
-              )}
-            </div>
+                    <button
+                      onClick={() => onRegenerate(post.id)}
+                      disabled={regenerating}
+                      className="w-full px-4 py-2.5 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Regenerar com IA
+                    </button>
+
+                    {post.status === 'SCHEDULED' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await postApi.publishNow(post.id);
+                            toast.success('Publicando agora!');
+                            onRefresh();
+                            onClose();
+                          } catch (error) {
+                            toast.error('Erro ao publicar');
+                          }
+                        }}
+                        className="w-full px-4 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.651z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Publicar Agora
+                      </button>
+                    )}
+
+                    <button
+                      onClick={onDelete}
+                      className="w-full px-4 py-2.5 border border-red-500/30 text-red-400 rounded-lg text-sm font-medium hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Excluir Post
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleSaveEdit}
+                      className="w-full px-4 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors"
+                    >
+                      Salvar Alterações
+                    </button>
+                    <button
+                      onClick={() => setEditing(false)}
+                      className="w-full px-4 py-2.5 border border-[#1f2937] text-gray-400 rounded-lg text-sm font-medium hover:border-gray-600 hover:text-white transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Info */}
             <div className="mt-6 space-y-3">

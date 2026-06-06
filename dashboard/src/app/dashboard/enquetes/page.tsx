@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { templateApi, channelApi, enqueteScheduleApi } from '@/lib/api';
 import { useChannelStore } from '@/lib/store';
 import toast from 'react-hot-toast';
+import GenerationLoader from '@/components/ui/GenerationLoader';
 
 interface Template {
   id: string;
@@ -27,6 +28,8 @@ export default function EnquetesPage() {
   const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
+  const [testStatus, setTestStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState<string>('');
   const [editing, setEditing] = useState<Template | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newTime, setNewTime] = useState('');
@@ -78,15 +81,42 @@ export default function EnquetesPage() {
   };
 
   const handleTest = async () => {
-    if (!selectedChannelId) return;
+    if (!selectedChannelId) {
+      toast.error('Selecione um canal primeiro');
+      return;
+    }
+
     setTesting(true);
+    setTestStatus('generating');
+    setTestMessage('Gerando Enquete com IA...');
+
     try {
-      await enqueteScheduleApi.testNow(selectedChannelId);
-      toast.success('Enquete sendo gerada!');
-    } catch (error) {
-      toast.error('Erro ao testar');
+      const res = await enqueteScheduleApi.testNow(selectedChannelId);
+      const data = res.data;
+
+      if (data?.success) {
+        setTestStatus('success');
+        const msg = data?.data?.question ? `Enquete postada: "${data.data.question}"` : 'Enquete postada!';
+        setTestMessage(msg);
+        toast.success(msg);
+
+        setTimeout(() => setTestStatus('idle'), 4000);
+      } else {
+        setTestStatus('error');
+        setTestMessage(data?.message || 'Erro ao postar enquete');
+        toast.error(data?.message || 'Erro ao postar enquete');
+
+        setTimeout(() => setTestStatus('idle'), 5000);
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.error || error.response?.data?.message || 'Erro ao postar enquete';
+      setTestStatus('error');
+      setTestMessage(message);
+      toast.error(message, { duration: 6000 });
+
+      setTimeout(() => setTestStatus('idle'), 5000);
     } finally {
-      setTimeout(() => setTesting(false), 3000);
+      setTesting(false);
     }
   };
 
