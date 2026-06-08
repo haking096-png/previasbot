@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 import { appConfig } from './config';
 import logger from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
@@ -17,6 +18,7 @@ import ctaPresenteController from './controllers/ctaPresente.controller';
 import enqueteController from './controllers/enquete.controller';
 import videoController from './controllers/video.controller';
 import templateController from './controllers/template.controller';
+import healthRoutes from './routes/health.routes';
 
 const app = express();
 
@@ -25,18 +27,30 @@ app.set('trust proxy', 1);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
-app.use(cors());
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || [
+    'http://localhost:3000',
+    'https://telegram-bot-v2.up.railway.app',
+    'https://dashboard-opal-nine-77.vercel.app', // Vercel frontend domain
+  ],
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 500,
-  skip: (req) => req.path.startsWith('/api/media') && req.path.includes('/image'),
+  skip: (req) => req.path === '/api/media/:id/image' && req.method === 'GET',
   validate: { xForwardedForHeader: false },
 });
 app.use(limiter);
 
+// Serve static dashboard files (../../dashboard from dist/index.js)
+const dashboardPath = path.join(__dirname, '..', '..', 'dashboard');
+app.use(express.static(dashboardPath, { maxAge: '1y', etag: false }));
+
+// Health endpoints
 app.get('/', (req, res) => {
   res.json({
     message: 'Telegram Preview Bot API',
@@ -44,7 +58,7 @@ app.get('/', (req, res) => {
     status: 'running',
     endpoints: {
       health: '/health',
-      api: '/api/*'
+      api: '/api/*',
     }
   });
 });
@@ -52,6 +66,9 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Health Check endpoints
+app.use('/api/health', healthRoutes);
 
 // Auth
 app.post('/api/auth/login', authController.login.bind(authController));
@@ -71,7 +88,9 @@ app.post('/api/media/upload', mediaController.upload.array('images', 10), mediaC
 app.post('/api/media/:id/reprocess', mediaController.reprocess.bind(mediaController));
 app.post('/api/media/reorder', mediaController.reorder.bind(mediaController));
 app.delete('/api/media/:id', mediaController.delete.bind(mediaController));
+app.post('/api/media/:id/reupload', mediaController.reupload.bind(mediaController));
 app.post('/api/media/import', mediaController.triggerImport.bind(mediaController));
+app.post('/api/media/clear-invalid-fileids', mediaController.clearInvalidFileIds.bind(mediaController));
 
 // Previews
 app.get('/api/previews', previewController.getAll.bind(previewController));
@@ -90,7 +109,6 @@ app.post('/api/previews/test', async (req, res) => {
       return res.status(400).json({ error: 'prompt and description required' });
     }
 
-    // Lightweight direct call to Grok using the same pattern as the service
     const axios = require('axios');
     const apiKey = process.env.GROK_API_KEY;
     const apiUrl = 'https://api.x.ai/v1';
@@ -137,7 +155,7 @@ Retorne APENAS JSON:
       cta: ctaLines.join('\n'),
     });
   } catch (error: any) {
-    console.error('Test preview error', error?.response?.data || error.message);
+    logger.error('Test preview error', { error: error?.response?.data || error.message });
     res.status(500).json({ error: 'Failed to generate test preview' });
   }
 });
@@ -159,6 +177,10 @@ app.delete('/api/posts/:id', postController.deleteOne.bind(postController));
 app.post('/api/posts/reorder', postController.reorder.bind(postController));
 app.post('/api/posts/bulk-delete', postController.bulkDelete.bind(postController));
 app.post('/api/posts/:id/regenerate', postController.regeneratePreview.bind(postController));
+app.post('/api/posts/:id/reset', postController.resetStuckPost.bind(postController));
+app.post('/api/posts/reset-all-stuck', postController.resetAllStuck.bind(postController));
+app.post('/api/posts/fail-stuck', postController.failStuck.bind(postController));
+app.post('/api/posts/reset-fileid-errors', postController.resetFileIdErrors.bind(postController));
 
 // Channels
 app.get('/api/channels', channelController.getAll.bind(channelController));
@@ -191,10 +213,21 @@ app.delete('/api/templates/:id', templateController.delete.bind(templateControll
 app.post('/api/templates/reorder', templateController.reorder.bind(templateController));
 app.post('/api/templates/generate', templateController.generateFromTemplate.bind(templateController));
 
+// Serve dashboard SPA for all other routes
+app.get('*', (req, res) => {
+  const indexPath = path.join(dashboardPath, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      logger.error('Failed to serve dashboard', { error: err.message });
+      res.status(404).json({ error: 'Dashboard not found' });
+    }
+  });
+});
+
 app.use(errorHandler);
 
 app.listen(appConfig.port, () => {
-  logger.info(`Backend server running on port ${appConfig.port}`);
+  logger.info(`Server running on port ${appConfig.port}`);
   logger.info(`Environment: ${appConfig.nodeEnv}`);
 
   // Start workers in the same process

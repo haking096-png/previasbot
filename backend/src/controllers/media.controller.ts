@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Telegraf } from 'telegraf';
+import axios from 'axios';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 import { importQueue, analyzeQueue } from '../utils/queue';
@@ -314,6 +315,114 @@ export class MediaController {
     } catch (error: any) {
       logger.error('Get media error', { error: error.message });
       res.status(500).json({ error: 'Failed to get media' });
+    }
+  }
+
+  /**
+   * Limpa todos os telegramFileIds inválidos do banco de dados.
+   * Útil após problemas de publicação para resetar dados corrompidos.
+   */
+  async clearInvalidFileIds(req: Request, res: Response) {
+    try {
+      const result = await prisma.mediaItem.updateMany({
+        where: { telegramFileId: { not: null } },
+        data: { telegramFileId: null },
+      });
+      logger.info('Invalid fileIds cleared', { count: result.count });
+      res.json({ message: `Cleared ${result.count} invalid fileIds`, count: result.count });
+    } catch (error: any) {
+      logger.error('Clear invalid fileIds error', { error: error.message });
+      res.status(500).json({ error: 'Failed to clear fileIds' });
+    }
+  }
+
+  /**
+   * Re-upload de uma imagem específica para o Telegram storage.
+   * Útil para corrigir fileIds inválidos que causaram falha na publicação.
+   */
+  async reupload(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+
+      const media = await prisma.mediaItem.findUnique({
+        where: { id },
+        include: { channel: true },
+      });
+
+      if (!media) {
+        return res.status(404).json({ error: 'Media não encontrado' });
+      }
+
+      if (!media.channel) {
+        return res.status(400).json({ error: 'Canal não associado a esta mídia' });
+      }
+
+      if (!media.channel.mediaStorageChatId) {
+        return res.status(400).json({ error: 'Canal de armazenamento não configurado' });
+      }
+
+      // Se não tem file_id, não pode fazer re-upload diretamente
+      // O usuário precisa fazer upload novamente pelo dashboard
+      if (!media.telegramFileId) {
+        return res.status(400).json({
+          error: 'Esta mídia não tem file_id. Faça upload novamente pelo dashboard.',
+          requiresNewUpload: true
+        });
+      }
+
+      const bot = new Telegraf(media.channel.botToken);
+
+      // Baixar a imagem do Telegram storage
+      const fileLink = await bot.telegram.getFileLink(media.telegramFileId);
+      const response = await axios.get(fileLink.toString(), { responseType: 'arraybuffer' });
+      const buffer = Buffer.from(response.data);
+
+      // Re-enviar para o storage channel
+      let newFileId: string;
+      let newMessageId: number;
+
+      if (media.mediaType === 'VIDEO') {
+        const sentMessage = await bot.telegram.sendVideo(
+          media.channel.mediaStorageChatId,
+          { source: buffer, filename: media.originalName },
+          { caption: `♻️ Re-upload: ${media.originalName}` }
+        );
+        newFileId = sentMessage.video!.file_id;
+        newMessageId = sentMessage.message_id;
+      } else {
+        const sentMessage = await bot.telegram.sendPhoto(
+          media.channel.mediaStorageChatId,
+          { source: buffer, filename: media.originalName },
+          { caption: `♻️ Re-upload: ${media.originalName}` }
+        );
+        const photos = sentMessage.photo;
+        newFileId = photos[photos.length - 1].file_id;
+        newMessageId = sentMessage.message_id;
+      }
+
+      // Atualizar o banco com o novo file_id
+      await prisma.mediaItem.update({
+        where: { id },
+        data: {
+          telegramFileId: newFileId,
+          telegramMessageId: String(newMessageId),
+        },
+      });
+
+      logger.info('Media re-uploaded successfully', {
+        mediaId: id,
+        oldFileId: media.telegramFileId?.substring(0, 30),
+        newFileId: newFileId.substring(0, 30)
+      });
+
+      res.json({
+        message: 'Mídia re-enviada com sucesso',
+        fileId: newFileId,
+        messageId: newMessageId
+      });
+    } catch (error: any) {
+      logger.error('Re-upload error', { error: error.message, mediaId: req.params.id });
+      res.status(500).json({ error: 'Erro ao re-enviar mídia: ' + error.message });
     }
   }
 }
