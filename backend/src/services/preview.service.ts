@@ -34,7 +34,14 @@ export class PreviewService {
 
         if (channel) {
           effectiveCtaLink = channel.ctaLink || ctaLink;
-          channelPrompt = channel.previewPrompt || '';
+          // Prioritize previewPrompt, fallback to ctaPrompt (which works for CTA presente)
+          channelPrompt = channel.previewPrompt || channel.ctaPrompt || '';
+          logger.info('Channel prompt loaded', {
+            channelId,
+            hasPreviewPrompt: !!channel.previewPrompt,
+            hasCtaPrompt: !!channel.ctaPrompt,
+            promptLength: channelPrompt.length
+          });
         }
       }
 
@@ -125,21 +132,28 @@ Analise as informações abaixo da imagem/vídeo e gere UMA copy de prévia ORIG
   async generateFromVideoDescription(
     videoDescription: string,
     ctaLink: string,
-    channelId?: string
+    channelId?: string,
+    customPrompt?: string
   ): Promise<PreviewContent> {
     try {
       logger.info('Generating preview from video description', { channelId });
 
-      let channelPrompt = '';
+      let channelPrompt = customPrompt || '';
       let effectiveCtaLink = ctaLink;
 
-      if (channelId) {
+      if (!customPrompt && channelId) {
         const prisma = (await import('../utils/prisma')).default;
         const channel = await prisma.channel.findUnique({ where: { id: channelId } });
 
         if (channel) {
           effectiveCtaLink = channel.ctaLink || ctaLink;
           channelPrompt = channel.previewPrompt || '';
+        }
+      } else if (channelId) {
+        const prisma = (await import('../utils/prisma')).default;
+        const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+        if (channel) {
+          effectiveCtaLink = channel.ctaLink || ctaLink;
         }
       }
 

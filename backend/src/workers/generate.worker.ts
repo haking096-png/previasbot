@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { connection, publishQueue } from '../utils/queue';
+import { connectionOptions, publishQueue } from '../utils/queue';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 import previewService from '../services/preview.service';
@@ -129,8 +129,8 @@ async function autoSchedulePost(mediaItemId: string, previewId: string, channelI
 export const generateWorker = new Worker(
   'generate',
   async (job: Job) => {
-    const { mediaItemId } = job.data;
-    logger.info('Generate worker started', { jobId: job.id, mediaItemId });
+    const { mediaItemId, channelId: jobChannelId } = job.data;
+    logger.info('Generate worker started', { jobId: job.id, mediaItemId, jobChannelId });
 
     try {
       const mediaItem = await prisma.mediaItem.findUnique({
@@ -142,9 +142,9 @@ export const generateWorker = new Worker(
         throw new Error(`Media item not found: ${mediaItemId}`);
       }
 
-      // ALWAYS use the channelId from the MediaItem itself, never from job data
-      const channelId = mediaItem.channelId || undefined;
-      logger.info('Using channelId from MediaItem', { mediaItemId, channelId });
+      // Use channelId from MediaItem, fallback to job data if not set
+      const channelId = mediaItem.channelId || jobChannelId || undefined;
+      logger.info('Using channelId', { mediaItemId, channelId, mediaItemChannelId: mediaItem.channelId, jobChannelId });
 
       await prisma.mediaItem.update({
         where: { id: mediaItemId },
@@ -301,7 +301,7 @@ export const generateWorker = new Worker(
     }
   },
   {
-    connection,
+    connection: connectionOptions as any,
     concurrency: 1, // CRITICAL: prevent race conditions in autoSchedulePost
   }
 );

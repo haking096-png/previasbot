@@ -1,7 +1,7 @@
 import { Worker, Job } from 'bullmq';
 import { Telegraf } from 'telegraf';
 import axios from 'axios';
-import { connection, generateQueue } from '../utils/queue';
+import { connectionOptions, generateQueue } from '../utils/queue';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 import grokService from '../services/grok.service';
@@ -140,7 +140,8 @@ export const analyzeWorker = new Worker(
         data: { status: 'ANALYZED' },
       });
 
-      await generateQueue.add('generate-preview', { mediaItemId });
+      // Pass channelId to generate queue so it can use the channel's previewPrompt
+      await generateQueue.add('generate-preview', { mediaItemId, channelId: mediaItem.channelId });
 
       await prisma.jobLog.create({
         data: {
@@ -184,7 +185,7 @@ export const analyzeWorker = new Worker(
     }
   },
   {
-    connection,
+    connection: connectionOptions as any,
     concurrency: 2,
   }
 );
