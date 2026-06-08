@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { grokConfig } from '../config';
 import logger from '../utils/logger';
+import { grokCircuitBreaker } from '../utils/circuitBreaker';
 
 // ━━━━━━━━━━━━━━━━━━━ Types ━━━━━━━━━━━━━━━━━━━
 
@@ -139,8 +140,8 @@ O link do CTA é: ${ctaLink}
 Retorne APENAS um JSON válido com esta estrutura:
 {
   "headline": "HEADLINE NO ESTILO DOS EXEMPLOS",
-  "body": "corpo no estilo dos exemplos",
-  "cta": "TEXTO DO CTA NO ESTILO DOS EXEMPLOS (pode repetir 1 ou 3 vezes se for o padrão do canal)"
+  "body": "corpo no estilo dos exemplos (pode ter 2-3 linhas)",
+  "cta": "CTAs no estilo dos exemplos - pode ser múltiplas linhas separadas por nova linha (ex: 'CTA 1\\nCTA 2\\nCTA 3\\nCTA 4') ou uma linha única que será repetida"
 }
 
 Retorne APENAS o JSON, sem markdown, sem texto extra.`;
@@ -276,82 +277,84 @@ Retorne APENAS o JSON, sem markdown, sem texto extra.`;
 
   private async callGrokAPI(messages: any[], opts: Required<GrokRequestOptions>, modelOverride?: string): Promise<string> {
     const model = modelOverride || this.DEFAULT_MODEL;
-    let lastError: Error | null = null;
 
-    for (let attempt = 1; attempt <= opts.maxRetries; attempt++) {
-      try {
-        logger.info('Calling xAI API', {
-          attempt,
-          maxRetries: opts.maxRetries,
-          model,
-        });
+    // Use circuit breaker to prevent cascade failures
+    return await grokCircuitBreaker.execute(async () => {
+      let lastError: Error | null = null;
 
-        const response = await axios.post(
-          `${this.apiUrl}/chat/completions`,
-          {
+      for (let attempt = 1; attempt <= opts.maxRetries; attempt++) {
+        try {
+          logger.info('Calling xAI API', {
+            attempt,
+            maxRetries: opts.maxRetries,
             model,
-            messages,
-            temperature: opts.temperature,
-            max_tokens: opts.maxTokens,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${this.apiKey}`,
-              'Content-Type': 'application/json',
+            circuitBreakerState: grokCircuitBreaker.getState(),
+          });
+
+          const response = await axios.post(
+            `${this.apiUrl}/chat/completions`,
+            {
+              model,
+              messages,
+              temperature: opts.temperature,
+              max_tokens: opts.maxTokens,
             },
-            timeout: opts.timeoutMs,
-          }
-        );
-
-        const content = response.data?.choices?.[0]?.message?.content;
-        if (!content) {
-          throw new Error('Resposta vazia da API xAI');
-        }
-
-        logger.info('xAI API response received', {
-          attempt,
-          contentLength: content.length,
-          usage: response.data?.usage,
-        });
-
-        return content;
-      } catch (error: any) {
-        lastError = error;
-        const isAxiosError = error instanceof AxiosError;
-        const status = isAxiosError ? error.response?.status : undefined;
-        const errorData = isAxiosError ? error.response?.data : undefined;
-
-        logger.warn('xAI API call failed', {
-          attempt,
-          maxRetries: opts.maxRetries,
-          status,
-          error: error.message,
-          errorData,
-        });
-
-        // Don't retry on client errors (except 429 rate limit)
-        if (status && status >= 400 && status < 500 && status !== 429) {
-          const errorMsg = errorData?.error?.message || errorData?.error || error.message;
-          if (status === 401) {
-            logger.error('━━━ API KEY INVÁLIDA ━━━ Verifique GROK_API_KEY no .env. Acesse https://console.x.ai para gerar uma nova key.');
-          }
-          throw new Error(
-            `Erro da API xAI (${status}): ${errorMsg}`
+            {
+              headers: {
+                Authorization: `Bearer ${this.apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              timeout: opts.timeoutMs,
+            }
           );
-        }
 
-        // Wait before retry with exponential backoff
-        if (attempt < opts.maxRetries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-          logger.info('Retrying after delay', { delay, nextAttempt: attempt + 1 });
-          await this.sleep(delay);
+          const content = response.data?.choices?.[0]?.message?.content;
+          if (!content) {
+            throw new Error('Resposta vazia da API xAI');
+          }
+
+          logger.info('xAI API response received', {
+            attempt,
+            contentLength: content.length,
+            usage: response.data?.usage,
+          });
+
+          return content;
+        } catch (error: any) {
+          lastError = error;
+          const isAxiosError = error instanceof AxiosError;
+          const status = isAxiosError ? error.response?.status : undefined;
+          const errorData = isAxiosError ? error.response?.data : undefined;
+
+          logger.warn('xAI API call failed', {
+            attempt,
+            maxRetries: opts.maxRetries,
+            status,
+            error: error.message,
+            errorData,
+          });
+
+          // Don't retry on client errors (except 429 rate limit)
+          if (status && status >= 400 && status < 500 && status !== 429) {
+            const errorMsg = errorData?.error?.message || errorData?.error || error.message;
+            if (status === 401) {
+              logger.error('━━━ API KEY INVÁLIDA ━━━ Verifique GROK_API_KEY no .env. Acesse https://console.x.ai para gerar uma nova key.');
+            }
+            throw new Error(`Erro da API xAI (${status}): ${errorMsg}`);
+          }
+
+          // Wait before retry with exponential backoff + jitter
+          if (attempt < opts.maxRetries) {
+            const jitter = Math.random() * 1000; // Add jitter to prevent thundering herd
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000) + jitter;
+            logger.info('Retrying after delay', { delay: Math.round(delay), nextAttempt: attempt + 1 });
+            await this.sleep(delay);
+          }
         }
       }
-    }
 
-    throw new Error(
-      `Falha após ${opts.maxRetries} tentativas: ${lastError?.message || 'Erro desconhecido'}`
-    );
+      throw lastError || new Error('Max retries reached for Grok API');
+    });
   }
 
   private parseAnalysisResponse(content: string): GrokAnalysisResult {

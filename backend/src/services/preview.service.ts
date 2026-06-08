@@ -216,7 +216,7 @@ Retorne APENAS um JSON válido com esta estrutura:
         headline: 'VÍDEO NOVO CHEGANDO 🔥',
         body: videoDescription.substring(0, 180),
         preCta: 'Quer ver o vídeo completo sem censura? 👇',
-        cta: '🔥 VER AGORA 🔥\n🔥 VER AGORA 🔥\n🔥 VER AGORA 🔥',
+        cta: '🔥 VER AGORA 🔥\n🔥 VER AGORA 🔥\n🔥 VER AGORA 🔥\n🔥 VER AGORA 🔥',
         buttonText: '',
         buttonUrl: ctaLink
       };
@@ -239,10 +239,12 @@ Retorne APENAS um JSON válido com esta estrutura:
 
       let ctaLines: string[] = Array.isArray(parsed.ctaLines) ? parsed.ctaLines : [];
       if (ctaLines.length === 0) {
-        ctaLines = ['🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑'];
+        ctaLines = ['🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑'];
       }
-      while (ctaLines.length < 3) ctaLines.push(ctaLines[0]);
-      const cta = ctaLines.slice(0, 3).join('\n');
+      // Pad to at least 4 CTAs if needed
+      while (ctaLines.length < 4) ctaLines.push(ctaLines[0]);
+      // Use exactly 4 CTAs as per channel config
+      const cta = ctaLines.slice(0, 4).join('\n');
 
       return {
         headline,
@@ -267,16 +269,16 @@ Retorne APENAS um JSON válido com esta estrutura:
     const body = lines.slice(1, 4).join('\n') || 'Corpo perfeito te esperando...';
     const preCta = lines.find(l => l.includes('?') || l.includes('👇')) || 'Quer ver tudo? 👇';
 
-    let ctaLines = lines.filter(l => l.includes('🍑') || l.includes('🔥') || l.includes('VER') || l.includes('CLICA')).slice(0, 3);
-    if (ctaLines.length < 3) {
-      ctaLines = ['🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑'];
+    let ctaLines = lines.filter(l => l.includes('🍑') || l.includes('🔥') || l.includes('VER') || l.includes('CLICA') || l.includes('👀')).slice(0, 4);
+    if (ctaLines.length < 4) {
+      ctaLines = ['🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑', '🍑 QUERO VER TUDO 🍑'];
     }
 
     return {
       headline,
       body,
       preCta,
-      cta: ctaLines.join('\n'),
+      cta: ctaLines.slice(0, 4).join('\n'),
       buttonText: '',
       buttonUrl
     };
@@ -288,7 +290,7 @@ Retorne APENAS um JSON válido com esta estrutura:
    * <b>HEADLINE</b>
    * body text (plain)
    * <b>preCta question 👇</b>
-   * <a href="link"><b>CTA</b></a> x3
+   * <a href="link"><b>CTA</b></a> x4 (or however many are in the CTA)
    *
    * CTAs are clickable text links, not inline keyboard buttons.
    */
@@ -303,7 +305,7 @@ Retorne APENAS um JSON válido com esta estrutura:
 
     let caption = `${headline}\n\n${preview.body}\n\n${preCta}\n\n${ctaLinks}`;
 
-    // Telegram caption limit is 1024 chars — truncate body if needed
+    // Telegram caption limit is 1024 chars — truncate body if needed (prioritize keeping CTAs)
     if (caption.length > 1024) {
       const overhead = headline.length + preCta.length + ctaLinks.length + 8; // 8 = newlines
       const maxBody = 1024 - overhead;
@@ -401,9 +403,17 @@ Retorne APENAS um JSON válido com esta estrutura:
     const body = `Loira safada aqui provocando, ${analysis.pose || 'posando sensual'}...\nCorpo todo à mostra, ${analysis.clothing || 'sem roupa'} e pronta pra você.\nEssa madura adora deixar você louco.`;
     const preCta = 'Quer ver tudo sem censura? 👇';
 
-    const ctaOptions = ['🍑 VER A SAFADA 🍑', '🔥 CLICA PRA VER 🔥', '💦 VEM VER TUDO 💦', '😈 ENTRA NO VIP 😈'];
-    const selectedCta = ctaOptions[Math.floor(Math.random() * ctaOptions.length)];
-    const cta = `${selectedCta}\n${selectedCta}\n${selectedCta}`;
+    const ctaOptions = [
+      '🍑 VER A SAFADA 🍑',
+      '🔥 CLICA PRA VER 🔥',
+      '💦 VEM VER TUDO 💦',
+      '😈 ENTRA NO VIP 😈',
+      '👀 OLHA ESSE CORPO 🔥',
+      '💋 ME DEVORA AGORA 🍑'
+    ];
+    // Pick 4 different CTAs
+    const shuffled = [...ctaOptions].sort(() => Math.random() - 0.5);
+    const cta = shuffled.slice(0, 4).join('\n');
 
     return {
       headline,
