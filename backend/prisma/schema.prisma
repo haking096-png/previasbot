@@ -47,7 +47,7 @@ model MediaItem {
   status            MediaStatus    @default(PENDING)
   processed         Boolean        @default(false)
   channelId         String?
-  channel           Channel?       @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  channel           Channel?       @relation(fields: [channelId], references: [id], onDelete: Cascade)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   analysis          MediaAnalysis?
@@ -133,22 +133,6 @@ model Channel {
   schedules            Schedule[]
   ctaPresenteSchedules CtaPresenteSchedule[]
   enqueteSchedules     EnqueteSchedule[]
-  templates            Template[]
-}
-
-model Template {
-  id        String   @id @default(cuid())
-  channelId String
-  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  type      String   // 'PREVIEW' | 'CTA_PRESENTE' | 'ENQUETE'
-  name      String   // User-given name
-  order     Int      @default(0)
-  // Template data stored as JSON for flexibility
-  data      String   @db.Text  // JSON: { headline, body, preCta, cta } or { question, options } for enquete
-  ctaLink   String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model CtaPresenteSchedule {

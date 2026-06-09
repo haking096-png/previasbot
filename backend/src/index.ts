@@ -17,7 +17,6 @@ import channelController from './controllers/channel.controller';
 import ctaPresenteController from './controllers/ctaPresente.controller';
 import enqueteController from './controllers/enquete.controller';
 import videoController from './controllers/video.controller';
-import templateController from './controllers/template.controller';
 import healthRoutes from './routes/health.routes';
 
 const app = express();
@@ -204,14 +203,6 @@ app.post('/api/enquete/test', enqueteController.testNow.bind(enqueteController))
 
 // Video Scheduling
 app.post('/api/videos/schedule', videoController.scheduleVideo.bind(videoController));
-
-// Templates
-app.get('/api/templates', templateController.getAll.bind(templateController));
-app.post('/api/templates', templateController.create.bind(templateController));
-app.put('/api/templates/:id', templateController.update.bind(templateController));
-app.delete('/api/templates/:id', templateController.delete.bind(templateController));
-app.post('/api/templates/reorder', templateController.reorder.bind(templateController));
-app.post('/api/templates/generate', templateController.generateFromTemplate.bind(templateController));
 
 // Serve dashboard SPA for all other routes
 app.get('*', (req, res) => {

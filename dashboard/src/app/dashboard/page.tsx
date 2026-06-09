@@ -76,16 +76,16 @@ export default function DashboardPage() {
 
           <div className="space-y-6">
             <div className="flex gap-5">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold text-lg border border-cyan-500/20">1</div>
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-violet-500/10 text-violet-400 flex items-center justify-center font-bold text-lg border border-violet-500/20">1</div>
               <div className="flex-1">
                 <h3 className="font-semibold text-white mb-1">Crie seu primeiro Canal</h3>
                 <p className="text-sm text-gray-400 mb-2">Vá até a página de <strong>Canais</strong> e crie um novo canal. Você vai precisar do Token do Bot e do Chat ID.</p>
-                <a href="/dashboard/channels" className="inline-flex items-center text-sm font-medium text-cyan-400 hover:underline">Ir para Canais →</a>
+                <a href="/dashboard/channels" className="inline-flex items-center text-sm font-medium text-violet-400 hover:underline">Ir para Canais →</a>
               </div>
             </div>
 
             <div className="flex gap-5">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold text-lg border border-cyan-500/20">2</div>
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-violet-500/10 text-violet-400 flex items-center justify-center font-bold text-lg border border-violet-500/20">2</div>
               <div className="flex-1">
                 <h3 className="font-semibold text-white mb-1">Configure o Prompt Mestre</h3>
                 <p className="text-sm text-gray-400 mb-2">Depois de criar o canal, edite ele e cole seu <strong>Prompt Mestre</strong> (o estilo de escrita que o Grok deve seguir).</p>
@@ -93,27 +93,27 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex gap-5">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold text-lg border border-cyan-500/20">3</div>
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-violet-500/10 text-violet-400 flex items-center justify-center font-bold text-lg border border-violet-500/20">3</div>
               <div className="flex-1">
                 <h3 className="font-semibold text-white mb-1">Importe suas imagens</h3>
                 <p className="text-sm text-gray-400 mb-2">Coloque as fotos na pasta <code className="bg-white/5 px-1 rounded">uploads/</code> ou use a função de importação.</p>
-                <a href="/dashboard/media" className="inline-flex items-center text-sm font-medium text-cyan-400 hover:underline">Ir para Imagens →</a>
+                <a href="/dashboard/media" className="inline-flex items-center text-sm font-medium text-violet-400 hover:underline">Ir para Imagens →</a>
               </div>
             </div>
 
             <div className="flex gap-5">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold text-lg border border-cyan-500/20">4</div>
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-violet-500/10 text-violet-400 flex items-center justify-center font-bold text-lg border border-violet-500/20">4</div>
               <div className="flex-1">
                 <h3 className="font-semibold text-white mb-1">Revise e aprove as prévias</h3>
                 <p className="text-sm text-gray-400 mb-2">O Grok vai gerar as cópias automaticamente. Você revisa, edita se quiser, e aprova.</p>
-                <a href="/dashboard/previews" className="inline-flex items-center text-sm font-medium text-cyan-400 hover:underline">Ver Prévias →</a>
+                <a href="/dashboard/previews" className="inline-flex items-center text-sm font-medium text-violet-400 hover:underline">Ver Prévias →</a>
               </div>
             </div>
           </div>
         </div>
 
         <div className="text-center">
-          <a href="/dashboard/channels" className="inline-flex items-center justify-center px-8 py-3 rounded-lg bg-cyan-500 text-white font-medium hover:bg-cyan-600 transition-colors">
+          <a href="/dashboard/channels" className="inline-flex items-center justify-center px-8 py-3 rounded-lg bg-violet-500 text-white font-medium hover:bg-violet-600 transition-colors">
             Começar agora — Criar meu primeiro canal
           </a>
           <p className="text-[11px] text-gray-500 mt-4">Leva menos de 10 minutos para configurar tudo.</p>
@@ -146,20 +146,20 @@ export default function DashboardPage() {
           <div className="bg-[#111827] border border-[#1e293b] rounded-xl p-6">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-xs font-bold text-white uppercase tracking-wider">Canais Ativos</h2>
-              <span className="text-[10px] font-semibold text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-full border border-cyan-400/20">{channels.length} canais</span>
+              <span className="text-[10px] font-semibold text-violet-400 bg-violet-400/10 px-2.5 py-1 rounded-full border border-violet-400/20">{channels.length} canais</span>
             </div>
             {channels.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {channels.map((channel) => (
-                  <div key={channel.id} className={`flex items-center gap-3 p-3.5 rounded-lg border transition-colors ${selectedChannelId === channel.id ? 'border-cyan-500/50 bg-cyan-400/5' : 'border-[#1e293b] hover:border-gray-600'}`}>
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${selectedChannelId === channel.id ? 'bg-gradient-to-br from-cyan-500 to-blue-500 text-white' : 'bg-[#1e293b] text-gray-400'}`}>
+                  <div key={channel.id} className={`flex items-center gap-3 p-3.5 rounded-lg border transition-colors ${selectedChannelId === channel.id ? 'border-violet-500/50 bg-violet-400/5' : 'border-[#1e293b] hover:border-gray-600'}`}>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${selectedChannelId === channel.id ? 'bg-gradient-to-br from-violet-500 to-violet-500 text-white' : 'bg-[#1e293b] text-gray-400'}`}>
                       {channel.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white truncate">{channel.name}</p>
                       <p className="text-[11px] text-gray-500 truncate">{channel.chatId}</p>
                     </div>
-                    {selectedChannelId === channel.id && <span className="text-[9px] font-semibold text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded-full border border-cyan-400/20">Ativo</span>}
+                    {selectedChannelId === channel.id && <span className="text-[9px] font-semibold text-violet-400 bg-violet-400/10 px-2 py-0.5 rounded-full border border-violet-400/20">Ativo</span>}
                   </div>
                 ))}
               </div>
@@ -209,9 +209,9 @@ export default function DashboardPage() {
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   const colors: Record<string, { bg: string; border: string; text: string }> = {
-    cyan: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', text: 'text-cyan-400' },
+    cyan: { bg: 'bg-violet-500/10', border: 'border-violet-500/20', text: 'text-violet-400' },
     amber: { bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'text-amber-400' },
-    blue: { bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-400' },
+    blue: { bg: 'bg-violet-500/10', border: 'border-violet-500/20', text: 'text-violet-400' },
     emerald: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400' },
   };
 
@@ -235,9 +235,9 @@ function TimelineItem({ icon, color, title, subtitle }: { icon: string; color: s
 
   const colors: Record<string, string> = {
     emerald: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
-    blue: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+    blue: 'bg-violet-500/15 text-violet-400 border-violet-500/25',
     amber: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
-    cyan: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+    cyan: 'bg-violet-500/15 text-violet-400 border-violet-500/25',
   };
 
   return (
@@ -255,9 +255,9 @@ function TimelineItem({ icon, color, title, subtitle }: { icon: string; color: s
 
 function QuickAction({ href, icon, label, description }: { href: string; icon: string; label: string; description: string }) {
   return (
-    <a href={href} className="flex flex-col items-start gap-3 p-4 rounded-lg border border-[#1e293b] hover:border-cyan-500/30 transition-colors bg-gradient-to-br from-cyan-500/5 to-blue-500/5">
-      <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
-        <svg className="w-[18px] h-[18px] text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={icon} /></svg>
+    <a href={href} className="flex flex-col items-start gap-3 p-4 rounded-lg border border-[#1e293b] hover:border-violet-500/30 transition-colors bg-gradient-to-br from-violet-500/5 to-violet-500/5">
+      <div className="w-9 h-9 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+        <svg className="w-[18px] h-[18px] text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={icon} /></svg>
       </div>
       <div>
         <p className="text-sm font-medium text-white">{label}</p>

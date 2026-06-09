@@ -209,16 +209,17 @@ export class PostController {
         return res.status(400).json({ error: `Post cannot be published (status: ${post.status})` });
       }
 
-      // Update post to publishing status
-      await prisma.post.update({
-        where: { id },
-        data: { status: 'PUBLISHING' },
-      });
+      // DO NOT update status here - let the worker handle status transitions to avoid race conditions
+      // The worker will update to PUBLISHING inside a transaction
 
-      // Add to queue for immediate publishing
-      await publishQueue.add('publish-post', { postId: post.id });
+      // Add to queue for immediate publishing with unique jobId to prevent duplicates
+      await publishQueue.add(
+        'publish-post',
+        { postId: post.id },
+        { jobId: `publish-now-${post.id}-${Date.now()}` }
+      );
 
-      logger.info('Post queued for immediate publishing', { id: post.id });
+      logger.info('Post queued for immediate publishing', { id: post.id, jobId: `publish-now-${post.id}` });
 
       // Reschedule remaining posts for this channel
       const channelId = post.mediaItem.channelId;
@@ -230,6 +231,92 @@ export class PostController {
     } catch (error: any) {
       logger.error('Publish now error', { error: error.message });
       res.status(500).json({ error: 'Failed to publish post' });
+    }
+  }
+
+  // Reset ALL stuck posts (PUBLISHING for more than 15 minutes) back to SCHEDULED
+  async resetAllStuck(req: Request, res: Response) {
+    try {
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+      // Find all posts stuck in PUBLISHING for more than 15 minutes
+      const stuckPosts = await prisma.post.findMany({
+        where: {
+          status: 'PUBLISHING',
+          updatedAt: { lt: fifteenMinutesAgo },
+        },
+      });
+
+      if (stuckPosts.length === 0) {
+        return res.json({ message: 'No stuck posts found', count: 0 });
+      }
+
+      // Reset all stuck posts to SCHEDULED
+      await prisma.post.updateMany({
+        where: {
+          status: 'PUBLISHING',
+          updatedAt: { lt: fifteenMinutesAgo },
+        },
+        data: {
+          status: 'SCHEDULED',
+          retryCount: 0,
+          error: null,
+        },
+      });
+
+      // Re-add all to queue
+      const { publishQueue } = await import('../utils/queue');
+      for (const post of stuckPosts) {
+        const delay = post.scheduledFor ? Math.max(0, post.scheduledFor.getTime() - Date.now()) : 0;
+        await publishQueue.add(
+          'publish-post',
+          { postId: post.id },
+          { delay }
+        );
+      }
+
+      logger.info('All stuck posts reset to SCHEDULED and re-queued', { count: stuckPosts.length });
+      res.json({ message: `${stuckPosts.length} post(s) reset to SCHEDULED`, count: stuckPosts.length });
+    } catch (error: any) {
+      logger.error('Reset all stuck posts error', { error: error.message });
+      res.status(500).json({ error: 'Failed to reset stuck posts' });
+    }
+  }
+
+  // Mark ALL stuck posts (PUBLISHING for more than 15 minutes) as FAILED
+  async failStuck(req: Request, res: Response) {
+    try {
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+      // Find all posts stuck in PUBLISHING for more than 15 minutes
+      const stuckPosts = await prisma.post.findMany({
+        where: {
+          status: 'PUBLISHING',
+          updatedAt: { lt: fifteenMinutesAgo },
+        },
+      });
+
+      if (stuckPosts.length === 0) {
+        return res.json({ message: 'No stuck posts found', count: 0 });
+      }
+
+      // Mark all stuck posts as FAILED
+      await prisma.post.updateMany({
+        where: {
+          status: 'PUBLISHING',
+          updatedAt: { lt: fifteenMinutesAgo },
+        },
+        data: {
+          status: 'FAILED',
+          error: 'Post was stuck in PUBLISHING for more than 15 minutes - marked as FAILED',
+        },
+      });
+
+      logger.info('All stuck posts marked as FAILED', { count: stuckPosts.length });
+      res.json({ message: `${stuckPosts.length} post(s) marked as FAILED`, count: stuckPosts.length });
+    } catch (error: any) {
+      logger.error('Fail stuck posts error', { error: error.message });
+      res.status(500).json({ error: 'Failed to mark stuck posts as FAILED' });
     }
   }
 
@@ -285,6 +372,47 @@ export class PostController {
     } catch (error: any) {
       logger.error('Reschedule post error', { error: error.message });
       res.status(500).json({ error: 'Failed to reschedule post' });
+    }
+  }
+
+  // Reset a stuck post (PUBLISHING for too long) back to SCHEDULED
+  async resetStuckPost(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+
+      const post = await prisma.post.findUnique({ where: { id } });
+      if (!post) {
+        return res.status(404).json({ error: 'Post não encontrado' });
+      }
+
+      if (post.status !== 'PUBLISHING') {
+        return res.status(400).json({ error: `Post is not in PUBLISHING status (current: ${post.status})` });
+      }
+
+      // Reset to SCHEDULED so it can be retried
+      await prisma.post.update({
+        where: { id },
+        data: {
+          status: 'SCHEDULED',
+          retryCount: 0,
+          error: null,
+        },
+      });
+
+      // Re-add to queue
+      const { publishQueue } = await import('../utils/queue');
+      const delay = post.scheduledFor ? Math.max(0, post.scheduledFor.getTime() - Date.now()) : 0;
+      await publishQueue.add(
+        'publish-post',
+        { postId: post.id },
+        { delay }
+      );
+
+      logger.info('Stuck post reset to SCHEDULED and re-queued', { postId: id });
+      res.json({ message: 'Post reset to SCHEDULED', id });
+    } catch (error: any) {
+      logger.error('Reset stuck post error', { error: error.message, id: req.params.id });
+      res.status(500).json({ error: 'Failed to reset post' });
     }
   }
 
@@ -361,6 +489,30 @@ export class PostController {
     } catch (error: any) {
       logger.error('Regenerate preview error', { error: error.message });
       res.status(500).json({ error: 'Failed to regenerate preview' });
+    }
+  }
+
+  /**
+   * Marca todos os posts que falharam com "wrong remote file identifier" como FAILED permanente.
+   * Isso impede retries infinitos para posts com fileIds corrompidos.
+   */
+  async resetFileIdErrors(req: Request, res: Response) {
+    try {
+      // Marcar todos os posts que falharam com "wrong remote file identifier" como FAILED permanentemente
+      const result = await prisma.post.updateMany({
+        where: {
+          error: { contains: 'wrong remote file identifier' }
+        },
+        data: {
+          error: 'File ID inválido - faça re-upload da imagem para continuar',
+          retryCount: 99, // Marca como permanente
+        },
+      });
+      logger.info('Posts com erro de fileId marcados como permanentes', { count: result.count });
+      res.json({ message: `Marcados ${result.count} posts com erro permanente`, count: result.count });
+    } catch (error: any) {
+      logger.error('Reset fileId errors error', { error: error.message });
+      res.status(500).json({ error: 'Failed to reset fileId errors' });
     }
   }
 }

@@ -56,20 +56,20 @@ export default function GenerationLoader({
       {status === 'generating' && (
         <>
           <div className="relative">
-            <div className={`${sizeClasses[size]} rounded-full border-2 border-cyan-500/20`} />
-            <div className={`${sizeClasses[size]} rounded-full border-2 border-transparent border-t-cyan-500 absolute inset-0 animate-spin`} />
+            <div className={`${sizeClasses[size]} rounded-full border-2 border-violet-500/20`} />
+            <div className={`${sizeClasses[size]} rounded-full border-2 border-transparent border-t-violet-500 absolute inset-0 animate-spin`} />
             <div className="absolute inset-0 flex items-center justify-center">
-              <svg className={`${size === 'lg' ? 'w-8 h-8' : size === 'md' ? 'w-5 h-5' : 'w-4 h-4'} text-cyan-400`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className={`${size === 'lg' ? 'w-8 h-8' : size === 'md' ? 'w-5 h-5' : 'w-4 h-4'} text-violet-400`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
           </div>
           <div className="text-center">
-            <p className={`${textSizes[size]} text-cyan-400 font-medium`}>{message}</p>
+            <p className={`${textSizes[size]} text-violet-400 font-medium`}>{message}</p>
             {showProgress && (
               <div className="w-32 h-1 bg-[#1e293b] rounded-full overflow-hidden mt-2">
                 <div
-                  className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300"
+                  className="h-full bg-gradient-to-r from-violet-500 to-violet-500 transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>

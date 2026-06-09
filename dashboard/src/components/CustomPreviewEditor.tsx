@@ -64,8 +64,12 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
   }, [initialDescription]);
 
   const handleGenerate = async () => {
-    if (!prompt.trim() || !description.trim()) {
-      toast.error('Preencha o prompt e a descrição');
+    if (!description.trim()) {
+      toast.error('Preencha a descrição');
+      return;
+    }
+    if (!channelId) {
+      toast.error('Selecione um canal');
       return;
     }
 
@@ -75,18 +79,29 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
     setErrorMessage('');
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/previews/test`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      console.log('[CustomPreview] Calling API:', { apiUrl, description, channelId, prompt: prompt?.substring(0, 50) });
+
+      // Use the real preview endpoint that saves to DB and creates a post
+      const response = await fetch(`${apiUrl}/api/previews/from-video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, description }),
+        body: JSON.stringify({
+          description,
+          channelId,
+          prompt: prompt || undefined,
+        }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Erro ${response.status}`);
+        const errMsg = errorData.error || `Erro ${response.status}`;
+        console.error('[CustomPreview] API Error:', { status: response.status, errorData });
+        throw new Error(errMsg);
       }
 
       const data = await response.json();
+      console.log('[CustomPreview] API Response:', { headline: data.headline, hasPost: !!data.post, postId: data.post?.id });
 
       const newPreview: GeneratedPreview = {
         headline: data.headline || '',
@@ -106,11 +121,17 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
         setGenerationStatus('idle');
       }, 2000);
 
-      toast.success('Copy gerada com sucesso!');
+      if (data.post) {
+        toast.success(`✅ Copy gerada e post criado! Vá em Posts para ver.`, { duration: 6000 });
+      } else {
+        toast.success('Copy gerada! (post não foi criado automaticamente)', { duration: 6000 });
+        console.warn('[CustomPreview] Post não foi criado. Response:', data);
+      }
     } catch (error: any) {
+      console.error('[CustomPreview] Error:', error);
       setGenerationStatus('error');
       setErrorMessage(error.message || 'Erro ao gerar');
-      toast.error(error.message || 'Erro ao gerar prévia');
+      toast.error(`Erro: ${error.message || 'Erro ao gerar'}`, { duration: 8000 });
 
       setTimeout(() => {
         setGenerationStatus('idle');
@@ -133,15 +154,15 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
           <h3 className="text-sm font-semibold text-white">Gerador de Prévia Personalizada</h3>
           <button
             onClick={() => setShowHelp(!showHelp)}
-            className="text-xs text-cyan-400 hover:text-cyan-300"
+            className="text-xs text-violet-400 hover:text-violet-300"
           >
             {showHelp ? 'Ocultar ajuda' : 'Mostrar ajuda'}
           </button>
         </div>
 
         {showHelp && (
-          <div className="mb-4 bg-[#0a0e1a] border border-cyan-500/20 rounded-lg p-4 text-xs space-y-2">
-            <p className="text-cyan-400 font-semibold mb-2">📝 Como formatar sua copy:</p>
+          <div className="mb-4 bg-[#0a0e1a] border border-violet-500/20 rounded-lg p-4 text-xs space-y-2">
+            <p className="text-violet-400 font-semibold mb-2">📝 Como formatar sua copy:</p>
             <div className="space-y-1 text-gray-300">
               <p><code className="bg-[#1f2937] px-1.5 py-0.5 rounded">*texto*</code> → <strong className="text-emerald-400">TEXTO MAIÚSCULO</strong> (negrito)</p>
               <p><code className="bg-[#1f2937] px-1.5 py-0.5 rounded">(texto|https://link.com)</code> → Botão clicável</p>
@@ -162,7 +183,7 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
               placeholder="Cole aqui o prompt mestre com exemplos de copy..."
               rows={5}
               disabled={generating}
-              className="w-full bg-[#161b22] border border-[#1f2937] rounded-lg px-3 py-2.5 text-white text-sm focus:border-cyan-500 focus:outline-none resize-y disabled:opacity-50"
+              className="w-full bg-[#161b22] border border-[#1f2937] rounded-lg px-3 py-2.5 text-white text-sm focus:border-violet-500 focus:outline-none resize-y disabled:opacity-50"
             />
           </div>
 
@@ -176,19 +197,19 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
               placeholder="Descreva o que acontece na imagem/vídeo..."
               rows={3}
               disabled={generating}
-              className="w-full bg-[#161b22] border border-[#1f2937] rounded-lg px-3 py-2.5 text-white text-sm focus:border-cyan-500 focus:outline-none resize-y disabled:opacity-50"
+              className="w-full bg-[#161b22] border border-[#1f2937] rounded-lg px-3 py-2.5 text-white text-sm focus:border-violet-500 focus:outline-none resize-y disabled:opacity-50"
             />
           </div>
 
           {generationStatus === 'generating' ? (
-            <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg p-6">
+            <div className="bg-gradient-to-r from-violet-500/10 to-violet-500/10 border border-violet-500/30 rounded-lg p-6">
               <GenerationLoader status="generating" message="Gerando copy com IA..." size="md" showProgress={true} />
             </div>
           ) : (
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="w-full px-4 py-3 bg-cyan-500 text-white rounded-lg text-sm font-medium hover:bg-cyan-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full px-4 py-3 bg-violet-500 text-white rounded-lg text-sm font-medium hover:bg-violet-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {generationStatus === 'success' ? (
                 <>
@@ -236,7 +257,7 @@ export default function CustomPreviewEditor({ channelId, initialDescription, onG
 
           <div className="max-w-md mx-auto bg-[#0e1621] rounded-2xl overflow-hidden shadow-2xl border border-gray-800">
             <div className="bg-[#212d3b] px-4 py-3 flex items-center space-x-3 border-b border-gray-800">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg">P</div>
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-white font-bold text-lg">P</div>
               <div className="flex-1">
                 <div className="text-white font-medium text-sm">Previass Bot</div>
                 <div className="text-gray-400 text-xs">online</div>

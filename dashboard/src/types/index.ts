@@ -12,6 +12,7 @@ export interface MediaItem {
   createdAt: string;
   analysis?: MediaAnalysis;
   preview?: Preview;
+  posts?: { id: string; status: string; publishedAt: string }[];
 }
 
 export interface MediaAnalysis {

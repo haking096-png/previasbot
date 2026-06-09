@@ -83,6 +83,7 @@ export class PreviewController {
   async approve(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const { channelId, scheduledFor } = req.body || {};
 
       const preview = await prisma.preview.update({
         where: { id },
@@ -90,6 +91,7 @@ export class PreviewController {
           approved: true,
           status: 'APPROVED',
         },
+        include: { mediaItem: true },
       });
 
       await prisma.mediaItem.update({
@@ -97,8 +99,92 @@ export class PreviewController {
         data: { status: 'READY' },
       });
 
+      // Automatically create a Post when preview is approved
+      let post = null;
+      try {
+        // Determine channelId: from body, from mediaItem, or first available channel
+        let effectiveChannelId = channelId || preview.mediaItem?.channelId;
+        if (!effectiveChannelId) {
+          const firstChannel = await prisma.channel.findFirst({
+            where: { enabled: true },
+            orderBy: { createdAt: 'asc' },
+          });
+          effectiveChannelId = firstChannel?.id;
+        }
+
+        if (effectiveChannelId) {
+          // Determine scheduled time
+          let effectiveScheduledFor = scheduledFor ? new Date(scheduledFor) : null;
+
+          if (!effectiveScheduledFor) {
+            // Use the next available schedule slot for the channel
+            const schedules = await prisma.schedule.findMany({
+              where: { channelId: effectiveChannelId, enabled: true },
+              orderBy: { time: 'asc' },
+            });
+
+            if (schedules.length > 0) {
+              const now = new Date();
+              const today = new Date(now);
+              today.setHours(0, 0, 0, 0);
+
+              for (let daysAhead = 0; daysAhead < 7; daysAhead++) {
+                for (const schedule of schedules) {
+                  const [hours, minutes] = schedule.time.split(':').map(Number);
+                  const candidate = new Date(today);
+                  candidate.setDate(candidate.getDate() + daysAhead);
+                  candidate.setHours(hours, minutes, 0, 0);
+
+                  if (candidate.getTime() > now.getTime() + 60000) {
+                    effectiveScheduledFor = candidate;
+                    break;
+                  }
+                }
+                if (effectiveScheduledFor) break;
+              }
+            }
+
+            // Fallback: schedule for 1 minute from now
+            if (!effectiveScheduledFor) {
+              effectiveScheduledFor = new Date(Date.now() + 60000);
+            }
+          }
+
+          post = await prisma.post.create({
+            data: {
+              mediaItemId: preview.mediaItemId,
+              previewId: preview.id,
+              channelId: effectiveChannelId,
+              scheduledFor: effectiveScheduledFor,
+              status: 'SCHEDULED',
+            },
+          });
+
+          const { publishQueue } = await import('../utils/queue');
+          const delay = effectiveScheduledFor.getTime() - Date.now();
+          await publishQueue.add(
+            'publish-post',
+            { postId: post.id },
+            { delay: Math.max(0, delay) }
+          );
+
+          logger.info('Post automatically created from approved preview', {
+            postId: post.id,
+            previewId: id,
+            channelId: effectiveChannelId,
+            scheduledFor: effectiveScheduledFor,
+          });
+        }
+      } catch (postError: any) {
+        logger.error('Failed to auto-create post from approved preview', {
+          previewId: id,
+          error: postError.message,
+        });
+        // Don't fail the approve if post creation fails
+      }
+
       logger.info('Preview approved', { id });
-      res.json(preview);
+      res.json({ ...preview, post });
     } catch (error: any) {
       logger.error('Approve preview error', { error: error.message });
       res.status(500).json({ error: 'Failed to approve preview' });
@@ -159,7 +245,7 @@ export class PreviewController {
 
   async generateFromVideo(req: Request, res: Response) {
     try {
-      const { description, channelId, ctaLink } = req.body;
+      const { description, channelId, ctaLink, autoApprove, prompt } = req.body;
 
       if (!description) {
         return res.status(400).json({ error: 'description é obrigatória' });
@@ -177,11 +263,105 @@ export class PreviewController {
       const preview = await previewService.generateFromVideoDescription(
         description,
         effectiveCtaLink || '',
-        channelId
+        channelId,
+        prompt
       );
 
+      // For video previews, we need to create a MediaItem + Preview + Post to make it appear in the list
+      let post = null;
+      try {
+        if (channelId) {
+          // Create a MediaItem for this video preview
+          // Use TEXT mediaType to indicate this is text-only content (AI-generated, no actual file)
+          const mediaItem = await prisma.mediaItem.create({
+            data: {
+              channelId,
+              filename: `video-preview-${Date.now()}.txt`,
+              originalName: `video-preview.txt`,
+              filePath: '', // Empty path - text-only content
+              mediaType: 'TEXT', // Explicitly mark as TEXT - no file needed
+              order: 9999,
+              status: 'READY',
+              processed: true,
+            },
+          });
+
+          // Create a Preview for this MediaItem
+          const savedPreview = await prisma.preview.create({
+            data: {
+              mediaItemId: mediaItem.id,
+              headline: preview.headline || '',
+              body: preview.body || '',
+              preCta: preview.preCta || '',
+              cta: preview.cta || '',
+              buttonText: preview.buttonText || '',
+              buttonUrl: preview.buttonUrl || '',
+              approved: true,
+              status: 'APPROVED',
+            },
+          });
+
+          // Determine scheduled time
+          let effectiveScheduledFor: Date | null = null;
+          const schedules = await prisma.schedule.findMany({
+            where: { channelId, enabled: true },
+            orderBy: { time: 'asc' },
+          });
+
+          if (schedules.length > 0) {
+            const now = new Date();
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+
+            for (let daysAhead = 0; daysAhead < 7; daysAhead++) {
+              for (const schedule of schedules) {
+                const [hours, minutes] = schedule.time.split(':').map(Number);
+                const candidate = new Date(today);
+                candidate.setDate(candidate.getDate() + daysAhead);
+                candidate.setHours(hours, minutes, 0, 0);
+
+                if (candidate.getTime() > now.getTime() + 60000) {
+                  effectiveScheduledFor = candidate;
+                  break;
+                }
+              }
+              if (effectiveScheduledFor) break;
+            }
+          }
+
+          if (!effectiveScheduledFor) {
+            effectiveScheduledFor = new Date(Date.now() + 60000);
+          }
+
+          // Create a Post
+          post = await prisma.post.create({
+            data: {
+              mediaItemId: mediaItem.id,
+              previewId: savedPreview.id,
+              channelId,
+              scheduledFor: effectiveScheduledFor,
+              status: 'SCHEDULED',
+            },
+          });
+
+          const { publishQueue } = await import('../utils/queue');
+          const delay = effectiveScheduledFor.getTime() - Date.now();
+          await publishQueue.add(
+            'publish-post',
+            { postId: post.id },
+            { delay: Math.max(0, delay) }
+          );
+
+          logger.info('Post auto-created from video preview', { postId: post.id });
+        }
+      } catch (postError: any) {
+        logger.error('Failed to auto-create post from video preview', {
+          error: postError.message,
+        });
+      }
+
       logger.info('Video preview generated', { channelId });
-      res.json(preview);
+      res.json({ ...preview, post });
     } catch (error: any) {
       logger.error('Generate from video error', { error: error.message });
       res.status(500).json({ error: 'Erro ao gerar prévia do vídeo' });

@@ -17,45 +17,16 @@ export class CtaEnqueteService {
         return { success: false, message: 'Canal desativado' };
       }
 
-      // 1. Try to use a template (if any active templates exist)
-      const templates = await prisma.template.findMany({
-        where: { channelId, type: 'CTA_PRESENTE', isActive: true },
-        orderBy: { order: 'asc' },
-      });
+      // Use the channel's CTA prompt (or fall back to preview prompt)
+      if (!channel.ctaPrompt && !channel.previewPrompt) {
+        return { success: false, message: 'Configure um prompt de CTA Presente nas configurações do canal' };
+      }
 
       let headline = '';
       let body = '';
       let ctaText = '';
 
-      if (templates.length > 0) {
-        // Pick a random template (or first if only one)
-        const template = templates[Math.floor(Math.random() * templates.length)];
-        const templateData = template.data ? (typeof template.data === 'string' ? JSON.parse(template.data) : template.data) : {};
-        logger.info('Using CTA template', { templateId: template.id, templateName: template.name });
-
-        try {
-          // Generate from template + channel style
-          const generated = await grokService.generateCtaPresente(
-            `Baseie-se neste template:\n${JSON.stringify(templateData, null, 2)}`,
-            template.ctaLink || channel.ctaLink,
-            channel.previewPrompt || ''
-          );
-          headline = generated.headline;
-          body = generated.body;
-          ctaText = generated.cta;
-        } catch (genError: any) {
-          // Fallback to template data directly
-          logger.warn('Generation failed, using template data directly', { error: genError.message });
-          headline = templateData?.headline || 'PRESENTE PRA VOCÊ 🎁';
-          body = templateData?.body || 'Vim te dar um presentinho bem safado...';
-          ctaText = templateData?.cta || '🎁 RESGATAR MEU PRESENTE';
-        }
-      } else {
-        // 2. Fallback: use channel's CTA prompt
-        if (!channel.ctaPrompt && !channel.previewPrompt) {
-          return { success: false, message: 'Configure prompts de CTA ou crie templates' };
-        }
-
+      try {
         const generated = await grokService.generateCtaPresente(
           channel.ctaPrompt || 'Siga o estilo geral do canal.',
           channel.ctaLink,
@@ -64,6 +35,11 @@ export class CtaEnqueteService {
         headline = generated.headline;
         body = generated.body;
         ctaText = generated.cta;
+      } catch (genError: any) {
+        logger.warn('CTA generation failed, using fallback', { error: genError.message });
+        headline = 'PRESENTE PRA VOCÊ 🎁';
+        body = 'Vim te dar um presentinho bem safado...';
+        ctaText = '🎁 RESGATAR MEU PRESENTE';
       }
 
       // Apply censoring
@@ -128,43 +104,25 @@ export class CtaEnqueteService {
         return { success: false, message: 'Canal desativado' };
       }
 
-      // 1. Try templates
-      const templates = await prisma.template.findMany({
-        where: { channelId, type: 'ENQUETE', isActive: true },
-        orderBy: { order: 'asc' },
-      });
+      // Use channel's enquete prompt (fallback to preview prompt)
+      if (!channel.enquetePrompt && !channel.previewPrompt) {
+        return { success: false, message: 'Configure um prompt de Enquete nas configurações do canal' };
+      }
 
       let question = '';
       let options: string[] = [];
 
-      if (templates.length > 0) {
-        const template = templates[Math.floor(Math.random() * templates.length)];
-        const templateData = template.data ? (typeof template.data === 'string' ? JSON.parse(template.data) : template.data) : {};
-        logger.info('Using Enquete template', { templateId: template.id, templateName: template.name });
-
-        try {
-          const generated = await grokService.generateEnquete(
-            `Baseie-se neste template:\n${JSON.stringify(templateData, null, 2)}`,
-            channel.previewPrompt || ''
-          );
-          question = generated.question;
-          options = generated.options;
-        } catch (genError: any) {
-          logger.warn('Generation failed, using template data directly', { error: genError.message });
-          question = templateData?.question || 'O QUE VOCÊ FARIA? 💦';
-          options = templateData?.options || ['Sim', 'Não'];
-        }
-      } else {
-        if (!channel.enquetePrompt && !channel.previewPrompt) {
-          return { success: false, message: 'Configure prompts de enquete ou crie templates' };
-        }
-
+      try {
         const generated = await grokService.generateEnquete(
           channel.enquetePrompt || 'Siga o estilo do canal para criar enquetes.',
           channel.previewPrompt || ''
         );
         question = generated.question;
         options = generated.options;
+      } catch (genError: any) {
+        logger.warn('Enquete generation failed, using fallback', { error: genError.message });
+        question = 'O QUE VOCÊ FARIA? 💦';
+        options = ['Sim', 'Não'];
       }
 
       // Apply censoring

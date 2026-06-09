@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { connection, publishQueue } from '../utils/queue';
+import { connectionOptions, publishQueue } from '../utils/queue';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 
@@ -249,7 +249,7 @@ export const scheduleWorker = new Worker(
     }
   },
   {
-    connection,
+    connection: connectionOptions as any,
     concurrency: 1, // CRITICAL: only 1 concurrent schedule worker to prevent race conditions
   }
 );

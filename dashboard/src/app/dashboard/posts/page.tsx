@@ -7,11 +7,15 @@ import toast from 'react-hot-toast';
 import { format, isToday, isTomorrow, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import GenerationLoader from '@/components/ui/GenerationLoader';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Badge, { StatusBadge } from '@/components/ui/Badge';
+import EmptyState from '@/components/ui/EmptyState';
 
 type ViewMode = 'kanban' | 'list';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; text: string; border: string }> = {
-  SCHEDULED: { label: 'Agendado', color: 'blue', bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/30' },
+  SCHEDULED: { label: 'Agendado', color: 'blue', bg: 'bg-violet-500/10', text: 'text-violet-400', border: 'border-violet-500/30' },
   PUBLISHING: { label: 'Publicando', color: 'amber', bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
   PUBLISHED: { label: 'Publicado', color: 'emerald', bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30' },
   FAILED: { label: 'Falhou', color: 'red', bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/30' },
@@ -76,8 +80,6 @@ export default function PostsPage() {
     }
   };
 
-  // ━━━━━━━━━━━━━━━ Multi-select logic ━━━━━━━━━━━━━━━
-
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
@@ -95,8 +97,6 @@ export default function PostsPage() {
       setSelectedIds(new Set(filteredPosts.map(p => p.id)));
     }
   };
-
-  // ━━━━━━━━━━━━━━━ Drag and drop ━━━━━━━━━━━━━━━
 
   const handleDragStart = (id: string) => {
     dragItem.current = id;
@@ -132,8 +132,6 @@ export default function PostsPage() {
     }
   };
 
-  // ━━━━━━━━━━━━━━━ Bulk actions ━━━━━━━━━━━━━━━
-
   const handleClearSelected = async () => {
     if (selectedIds.size === 0) {
       toast.error('Selecione pelo menos 1 post');
@@ -143,14 +141,12 @@ export default function PostsPage() {
 
     try {
       await postApi.bulkDelete(Array.from(selectedIds));
-      toast.success(`${selectedIds.size} post(s) excluído(s)`);
+      toast.success(`${selectedIds.size} post(s) excluido(s)`);
       loadPosts();
     } catch (error) {
       toast.error('Erro ao excluir');
     }
   };
-
-  // ━━━━━━━━━━━━━━━ Single post actions ━━━━━━━━━━━━━━━
 
   const handlePublish = async (id: string) => {
     try {
@@ -177,14 +173,12 @@ export default function PostsPage() {
     if (!confirm('Excluir permanentemente este post?')) return;
     try {
       await postApi.bulkDelete([id]);
-      toast.success('Post excluído!');
+      toast.success('Post excluido!');
       loadPosts();
     } catch (error) {
       toast.error('Erro ao excluir');
     }
   };
-
-  // ━━━━━━━━━━━━━━━ Quick post (CTA/Enquete) with LOADER ━━━━━━━━━━━━━━━
 
   const handleQuickPost = async (type: 'CTA' | 'ENQUETE') => {
     if (!selectedChannelId) {
@@ -244,15 +238,13 @@ export default function PostsPage() {
     }
   };
 
-  // ━━━━━━━━━━━━━━━ Regenerate preview with LOADER ━━━━━━━━━━━━━━━
-
   const handleRegenerate = async (postId: string) => {
-    if (!confirm('Regenerar a prévia com IA? A versão atual será substituída.')) return;
+    if (!confirm('Regenerar a previa com IA? A versao atual sera substituda.')) return;
 
     setActionStatus({
       type: 'regenerate',
       status: 'generating',
-      message: 'Regenerando prévia com IA...',
+      message: 'Regenerando previa com IA...',
     });
 
     try {
@@ -260,7 +252,7 @@ export default function PostsPage() {
       setActionStatus({
         type: 'regenerate',
         status: 'success',
-        message: 'Regeneração iniciada! Aguarde alguns segundos.',
+        message: 'Regeneracao iniciada! Aguarde alguns segundos.',
       });
       toast.success('Regenerando! Aguarde alguns segundos...');
 
@@ -282,8 +274,6 @@ export default function PostsPage() {
     }
   };
 
-  // ━━━━━━━━━━━━━━━ Filtering ━━━━━━━━━━━━━━━
-
   const filteredPosts = statusFilter === 'all'
     ? posts
     : posts.filter(p => p.status === statusFilter);
@@ -304,11 +294,11 @@ export default function PostsPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-[#0a0e1a]">
+    <div className="h-screen flex flex-col overflow-hidden bg-[var(--bg-primary)]">
       {/* Generation Status Banner */}
       {actionStatus.status !== 'idle' && actionStatus.type && (
-        <div className={`fixed top-20 right-6 z-50 bg-[#0d1117] border rounded-xl p-4 shadow-2xl ${
-          actionStatus.status === 'generating' ? 'border-cyan-500/30' :
+        <div className={`fixed top-20 right-6 z-50 bg-[var(--bg-secondary)] border rounded-xl p-4 shadow-2xl ${
+          actionStatus.status === 'generating' ? 'border-violet-500/30' :
           actionStatus.status === 'success' ? 'border-emerald-500/30' :
           'border-red-500/30'
         }`}>
@@ -321,44 +311,46 @@ export default function PostsPage() {
       )}
 
       {/* Header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-[#1f2937] bg-[#0a0e1a]">
+      <div className="flex-shrink-0 px-6 py-4 border-b border-[var(--border-default)] bg-[var(--bg-primary)]">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-xl font-bold text-white">Posts</h1>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">Posts</h1>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
               {counts.all} posts • {counts.scheduled} agendados • {counts.published} publicados
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             {/* Quick Post Buttons */}
-            <button
+            <Button
               onClick={() => handleQuickPost('CTA')}
               disabled={actionStatus.status === 'generating'}
-              className="px-3 py-2 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              size="sm"
+              className="bg-amber-500 hover:bg-amber-600"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
               </svg>
               Postar CTA
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => handleQuickPost('ENQUETE')}
               disabled={actionStatus.status === 'generating'}
-              className="px-3 py-2 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              size="sm"
+              className="bg-violet-500 hover:bg-violet-600"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               Postar Enquete
-            </button>
+            </Button>
 
             {/* View Toggle */}
-            <div className="flex items-center bg-[#0d1117] rounded-lg p-1 ml-2">
+            <div className="flex items-center bg-[var(--bg-secondary)] rounded-lg p-1 ml-2">
               <button
                 onClick={() => setViewMode('list')}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  viewMode === 'list' ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400 hover:text-white'
+                  viewMode === 'list' ? 'bg-violet-500/20 text-violet-400' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 Lista
@@ -366,7 +358,7 @@ export default function PostsPage() {
               <button
                 onClick={() => setViewMode('kanban')}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  viewMode === 'kanban' ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400 hover:text-white'
+                  viewMode === 'kanban' ? 'bg-violet-500/20 text-violet-400' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 Kanban
@@ -377,7 +369,7 @@ export default function PostsPage() {
 
         {/* Filters and Bulk Actions */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-[#0d1117] rounded-lg p-1">
+          <div className="flex items-center bg-[var(--bg-secondary)] rounded-lg p-1">
             {[
               { id: 'all', label: `Todos (${counts.all})` },
               { id: 'SCHEDULED', label: `Agendados (${counts.scheduled})` },
@@ -388,7 +380,7 @@ export default function PostsPage() {
                 key={f.id}
                 onClick={() => setStatusFilter(f.id)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  statusFilter === f.id ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400 hover:text-white'
+                  statusFilter === f.id ? 'bg-violet-500/20 text-violet-400' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {f.label}
@@ -401,24 +393,26 @@ export default function PostsPage() {
           {/* Bulk actions */}
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-cyan-400 font-medium">
+              <span className="text-xs text-violet-400 font-medium">
                 {selectedIds.size} selecionado(s)
               </span>
-              <button
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={handleClearSelected}
-                className="px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg text-xs font-medium hover:bg-red-500/20 transition-colors flex items-center gap-1.5"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
                 Clear
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setSelectedIds(new Set())}
-                className="px-3 py-1.5 border border-[#1f2937] text-gray-400 rounded-lg text-xs font-medium hover:text-white"
               >
                 Cancelar
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -428,37 +422,38 @@ export default function PostsPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {/* Channel selector banner if no channels */}
         {channels.length === 0 && (
-          <div className="mb-6 bg-amber-500/5 border border-amber-500/20 rounded-xl p-5 flex items-start gap-4">
-            <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
+          <Card padding="lg" className="mb-6 border-amber-500/20">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-amber-300 mb-1">Nenhum canal configurado</h3>
+                <p className="text-xs text-amber-400/80 mb-3">
+                  Voce precisa criar pelo menos um canal para postar, gerar previas e gerenciar posts.
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => window.location.href = '/dashboard/settings'}
+                >
+                  Criar canal agora
+                </Button>
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-amber-300 mb-1">Nenhum canal configurado</h3>
-              <p className="text-xs text-amber-400/80 mb-3">
-                Você precisa criar pelo menos um canal para postar, gerar prévias e gerenciar posts.
-              </p>
-              <a
-                href="/dashboard/channels"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-colors"
-              >
-                Criar canal agora →
-              </a>
-            </div>
-          </div>
+          </Card>
         )}
 
         {filteredPosts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-            <svg className="w-12 h-12 mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <p className="text-sm">Nenhum post encontrado</p>
-            {channels.length > 0 && (
-              <p className="text-xs text-gray-600 mt-1">Faça upload de imagens para gerar posts automaticamente</p>
-            )}
-          </div>
+          <Card padding="lg">
+            <EmptyState
+              illustration="posts"
+              title="Nenhum post encontrado"
+              description={channels.length > 0 ? "Faca upload de imagens para gerar posts automaticamente" : "Crie um canal primeiro"}
+            />
+          </Card>
         ) : viewMode === 'list' ? (
           <ListView
             posts={filteredPosts}
@@ -506,10 +501,6 @@ export default function PostsPage() {
   );
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// LIST VIEW
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 function ListView({
   posts,
   selectedIds,
@@ -527,23 +518,23 @@ function ListView({
   const allSelected = selectedIds.size === posts.length && posts.length > 0;
 
   return (
-    <div className="bg-[#0d1117] border border-[#1f2937] rounded-xl overflow-hidden">
+    <Card padding="none" className="overflow-hidden">
       {/* Table Header */}
-      <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-[#161b22] border-b border-[#1f2937] text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+      <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-[var(--bg-tertiary)] border-b border-[var(--border-default)] text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
         <div className="col-span-1 flex items-center gap-2">
           <input
             type="checkbox"
             checked={allSelected}
             onChange={onToggleSelectAll}
-            className="w-3.5 h-3.5 rounded border-gray-600 bg-[#0a0e1a] text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
+            className="w-3.5 h-3.5 rounded border-[var(--border-default)] bg-[var(--bg-tertiary)] text-violet-500 focus:ring-violet-500 focus:ring-offset-0"
           />
           <span>Ordem</span>
         </div>
-        <div className="col-span-2">Mídia</div>
+        <div className="col-span-2">Midia</div>
         <div className="col-span-3">Preview</div>
-        <div className="col-span-2">Horário</div>
+        <div className="col-span-2">Horario</div>
         <div className="col-span-2">Status</div>
-        <div className="col-span-2 text-right">Ações</div>
+        <div className="col-span-2 text-right">Acoes</div>
       </div>
 
       {/* Table Body */}
@@ -559,8 +550,8 @@ function ListView({
               onDragStart={() => onDragStart(post.id)}
               onDragOver={onDragOver}
               onDrop={() => onDrop(post.id)}
-              className={`grid grid-cols-12 gap-3 px-4 py-3 border-b border-[#1f2937] hover:bg-[#161b22] transition-colors cursor-move group ${
-                isSelected ? 'bg-cyan-500/5' : ''
+              className={`grid grid-cols-12 gap-3 px-4 py-3 border-b border-[var(--border-default)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-move group ${
+                isSelected ? 'bg-violet-500/5' : ''
               }`}
             >
               {/* Order + Checkbox + Drag Handle */}
@@ -570,15 +561,15 @@ function ListView({
                   checked={isSelected}
                   onChange={() => onToggleSelect(post.id)}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-3.5 h-3.5 rounded border-gray-600 bg-[#0a0e1a] text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
+                  className="w-3.5 h-3.5 rounded border-[var(--border-default)] bg-[var(--bg-tertiary)] text-violet-500 focus:ring-violet-500 focus:ring-offset-0"
                 />
                 <div className="flex items-center gap-1">
-                  <svg className="w-3 h-3 text-gray-600 group-hover:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-3 h-3 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]" fill="currentColor" viewBox="0 0 20 20">
                     <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
                     <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
                     <circle cx="7" cy="15" r="1.5" /><circle cx="13" cy="15" r="1.5" />
                   </svg>
-                  <span className="text-[10px] text-gray-500 font-mono">#{index + 1}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono">#{index + 1}</span>
                 </div>
               </div>
 
@@ -587,7 +578,7 @@ function ListView({
                 {post.mediaItem?.id && (
                   <div
                     onClick={() => onSelect(post)}
-                    className="w-16 h-12 rounded-lg bg-[#0a0e1a] overflow-hidden cursor-pointer hover:ring-1 hover:ring-cyan-500/30"
+                    className="w-16 h-12 rounded-lg bg-[var(--bg-tertiary)] overflow-hidden cursor-pointer hover:ring-2 hover:ring-violet-500/30 transition-all"
                   >
                     <img
                       src={`${apiUrl}/api/media/${post.mediaItem.id}/image`}
@@ -604,10 +595,10 @@ function ListView({
                 className="col-span-3 cursor-pointer"
                 onClick={() => onSelect(post)}
               >
-                <p className="text-sm text-white font-medium truncate">
+                <p className="text-sm text-[var(--text-primary)] font-medium truncate">
                   {post.preview?.headline || 'Sem headline'}
                 </p>
-                <p className="text-xs text-gray-500 truncate">
+                <p className="text-xs text-[var(--text-muted)] truncate">
                   {post.preview?.body?.replace(/\n/g, ' / ')}
                 </p>
               </div>
@@ -616,25 +607,23 @@ function ListView({
               <div className="col-span-2">
                 {post.scheduledFor ? (
                   <div>
-                    <p className="text-xs text-white font-medium">
+                    <p className="text-xs text-[var(--text-primary)] font-medium">
                       {format(new Date(post.scheduledFor), "dd MMM, HH:mm", { locale: ptBR })}
                     </p>
-                    <p className="text-[10px] text-gray-500">
-                      {isToday(new Date(post.scheduledFor)) && '🔥 Hoje'}
-                      {isTomorrow(new Date(post.scheduledFor)) && '📅 Amanhã'}
+                    <p className="text-[10px] text-[var(--text-muted)]">
+                      {isToday(new Date(post.scheduledFor)) && 'Hoje'}
+                      {isTomorrow(new Date(post.scheduledFor)) && 'Amanha'}
                       {isYesterday(new Date(post.scheduledFor)) && 'Ontem'}
                     </p>
                   </div>
                 ) : (
-                  <span className="text-xs text-gray-500">—</span>
+                  <span className="text-xs text-[var(--text-muted)]">—</span>
                 )}
               </div>
 
               {/* Status */}
               <div className="col-span-2">
-                <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium ${status.bg} ${status.text} ${status.border} border`}>
-                  {status.label}
-                </span>
+                <StatusBadge status={post.status} />
               </div>
 
               {/* Actions */}
@@ -643,7 +632,7 @@ function ListView({
                   <>
                     <button
                       onClick={(e) => { e.stopPropagation(); onPublish(post.id); }}
-                      className="p-1.5 rounded-md hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400"
+                      className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-[var(--text-muted)] hover:text-emerald-400 transition-colors"
                       title="Publicar agora"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -652,7 +641,7 @@ function ListView({
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); onCancel(post.id); }}
-                      className="p-1.5 rounded-md hover:bg-amber-500/10 text-gray-500 hover:text-amber-400"
+                      className="p-1.5 rounded-lg hover:bg-amber-500/10 text-[var(--text-muted)] hover:text-amber-400 transition-colors"
                       title="Cancelar agendamento"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -663,7 +652,7 @@ function ListView({
                 )}
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(post.id); }}
-                  className="p-1.5 rounded-md hover:bg-red-500/10 text-gray-500 hover:text-red-400"
+                  className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 transition-colors"
                   title="Excluir"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -675,13 +664,9 @@ function ListView({
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// KANBAN VIEW
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function KanbanView({
   posts,
@@ -703,13 +688,13 @@ function KanbanView({
         const config = STATUS_CONFIG[col];
         const colPosts = posts.filter((p: any) => p.status === col);
         return (
-          <div key={col} className="bg-[#0d1117] border border-[#1f2937] rounded-xl overflow-hidden">
+          <div key={col} className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-xl overflow-hidden">
             <div className={`flex items-center justify-between px-3 py-2.5 ${config.bg} ${config.border} border-b`}>
               <div className="flex items-center gap-2">
                 <div className={`w-1.5 h-1.5 rounded-full bg-${config.color}-400`} />
-                <h3 className="text-xs font-semibold text-white">{config.label}</h3>
+                <h3 className="text-xs font-semibold text-[var(--text-primary)]">{config.label}</h3>
               </div>
-              <span className="text-[10px] font-medium text-gray-500">{colPosts.length}</span>
+              <span className="text-[10px] font-medium text-[var(--text-muted)]">{colPosts.length}</span>
             </div>
 
             <div className="p-2 space-y-2 min-h-[200px]">
@@ -729,7 +714,7 @@ function KanbanView({
                 />
               ))}
               {colPosts.length === 0 && (
-                <p className="text-[10px] text-gray-600 text-center py-4">Nenhum post</p>
+                <p className="text-[10px] text-[var(--text-muted)] text-center py-4">Nenhum post</p>
               )}
             </div>
           </div>
@@ -757,7 +742,7 @@ function KanbanCard({
       onDragStart={() => onDragStart(post.id)}
       onDragOver={onDragOver}
       onDrop={() => onDrop(post.id)}
-      className={`bg-[#161b22] border ${isSelected ? 'border-cyan-500/50' : 'border-[#1f2937]'} rounded-lg p-2.5 cursor-move group hover:border-cyan-500/30 transition-colors`}
+      className={`bg-[var(--bg-tertiary)] border ${isSelected ? 'border-violet-500/50' : 'border-[var(--border-default)]'} rounded-xl p-3 cursor-move group hover:border-violet-500/30 transition-colors`}
     >
       <div className="flex items-start gap-2">
         <input
@@ -765,10 +750,10 @@ function KanbanCard({
           checked={isSelected}
           onChange={() => onToggleSelect(post.id)}
           onClick={(e) => e.stopPropagation()}
-          className="w-3.5 h-3.5 mt-1 rounded border-gray-600 bg-[#0a0e1a] text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
+          className="w-3.5 h-3.5 mt-1 rounded border-[var(--border-default)] bg-[var(--bg-secondary)] text-violet-500 focus:ring-violet-500 focus:ring-offset-0"
         />
         {post.mediaItem?.id && (
-          <div onClick={() => onSelect(post)} className="w-12 h-12 rounded bg-[#0a0e1a] overflow-hidden flex-shrink-0">
+          <div onClick={() => onSelect(post)} className="w-12 h-12 rounded-lg bg-[var(--bg-secondary)] overflow-hidden flex-shrink-0">
             <img
               src={`${apiUrl}/api/media/${post.mediaItem.id}/image`}
               alt=""
@@ -778,11 +763,11 @@ function KanbanCard({
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-white font-medium line-clamp-2 cursor-pointer" onClick={() => onSelect(post)}>
+          <p className="text-xs text-[var(--text-primary)] font-medium line-clamp-2 cursor-pointer" onClick={() => onSelect(post)}>
             {post.preview?.headline || 'Sem headline'}
           </p>
           {post.scheduledFor && (
-            <p className="text-[10px] text-gray-500 mt-1">
+            <p className="text-[10px] text-[var(--text-muted)] mt-1">
               {format(new Date(post.scheduledFor), "dd MMM, HH:mm", { locale: ptBR })}
             </p>
           )}
@@ -793,13 +778,13 @@ function KanbanCard({
         <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => onPublish(post.id)}
-            className="flex-1 px-2 py-1 text-[10px] rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+            className="flex-1 px-2 py-1 text-[10px] rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
           >
             Publicar
           </button>
           <button
             onClick={() => onCancel(post.id)}
-            className="flex-1 px-2 py-1 text-[10px] rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
+            className="flex-1 px-2 py-1 text-[10px] rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors"
           >
             Cancelar
           </button>
@@ -808,10 +793,6 @@ function KanbanCard({
     </div>
   );
 }
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// POST DETAIL MODAL
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function PostDetailModal({
   post,
@@ -856,17 +837,15 @@ function PostDetailModal({
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-[#0d1117] border border-[#1f2937] rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-[#0d1117] z-10 flex items-center justify-between p-5 border-b border-[#1f2937]">
+        <div className="sticky top-0 bg-[var(--bg-secondary)] z-10 flex items-center justify-between p-5 border-b border-[var(--border-default)]">
           <div>
-            <h2 className="text-lg font-semibold text-white">Detalhes do Post</h2>
-            <span className={`mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${status.bg} ${status.text}`}>
-              {status.label}
-            </span>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Detalhes do Post</h2>
+            <StatusBadge status={post.status} />
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg">
-            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <button onClick={onClose} className="p-2 hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors">
+            <svg className="w-5 h-5 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -875,13 +854,13 @@ function PostDetailModal({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-5">
           {/* Left: Telegram Preview */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">
               Como vai ficar no Telegram
             </h3>
             <div className="max-w-md mx-auto bg-[#0e1621] rounded-2xl overflow-hidden shadow-2xl border border-gray-800">
               {/* Telegram Header */}
               <div className="bg-[#212d3b] px-4 py-3 flex items-center space-x-3 border-b border-gray-800">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
                   P
                 </div>
                 <div className="flex-1">
@@ -912,28 +891,28 @@ function PostDetailModal({
                           value={editData.headline}
                           onChange={(e) => setEditData({ ...editData, headline: e.target.value })}
                           placeholder="Headline"
-                          className="w-full bg-[#0e1621] border border-[#1e293b] rounded px-2 py-1.5 text-white text-sm font-bold"
+                          className="w-full bg-[#0e1621] border border-[var(--border-default)] rounded px-2 py-1.5 text-white text-sm font-bold"
                         />
                         <textarea
                           value={editData.body}
                           onChange={(e) => setEditData({ ...editData, body: e.target.value })}
                           rows={3}
                           placeholder="Body"
-                          className="w-full bg-[#0e1621] border border-[#1e293b] rounded px-2 py-1.5 text-gray-300 text-sm"
+                          className="w-full bg-[#0e1621] border border-[var(--border-default)] rounded px-2 py-1.5 text-gray-300 text-sm"
                         />
                         <input
                           type="text"
                           value={editData.preCta}
                           onChange={(e) => setEditData({ ...editData, preCta: e.target.value })}
                           placeholder="Pre-CTA"
-                          className="w-full bg-[#0e1621] border border-[#1e293b] rounded px-2 py-1.5 text-gray-400 text-sm"
+                          className="w-full bg-[#0e1621] border border-[var(--border-default)] rounded px-2 py-1.5 text-gray-400 text-sm"
                         />
                         <textarea
                           value={editData.cta}
                           onChange={(e) => setEditData({ ...editData, cta: e.target.value })}
                           rows={3}
                           placeholder="CTA (um por linha)"
-                          className="w-full bg-[#0e1621] border border-[#1e293b] rounded px-2 py-1.5 text-white text-sm font-medium"
+                          className="w-full bg-[#0e1621] border border-[var(--border-default)] rounded px-2 py-1.5 text-white text-sm font-medium"
                         />
                       </div>
                     ) : (
@@ -982,40 +961,40 @@ function PostDetailModal({
 
           {/* Right: Actions and Info */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Ações</h3>
+            <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">Acoes</h3>
 
             {/* Status info */}
             {regenerating ? (
-              <div className="mb-4 p-4 bg-[#0a0e1a] border border-cyan-500/30 rounded-lg">
+              <div className="mb-4 p-4 bg-[var(--bg-tertiary)] border border-violet-500/30 rounded-xl">
                 <GenerationLoader status="generating" message="Regenerando com IA..." size="md" />
               </div>
             ) : (
               <div className="space-y-2">
                 {!editing ? (
                   <>
-                    <button
+                    <Button
                       onClick={() => setEditing(true)}
-                      className="w-full px-4 py-2.5 bg-cyan-500 text-white rounded-lg text-sm font-medium hover:bg-cyan-600 transition-colors flex items-center justify-center gap-2"
+                      className="w-full"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                       Editar Preview
-                    </button>
+                    </Button>
 
-                    <button
+                    <Button
                       onClick={() => onRegenerate(post.id)}
                       disabled={regenerating}
-                      className="w-full px-4 py-2.5 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="w-full bg-violet-500 hover:bg-violet-600"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
                       Regenerar com IA
-                    </button>
+                    </Button>
 
                     {post.status === 'SCHEDULED' && (
-                      <button
+                      <Button
                         onClick={async () => {
                           try {
                             await postApi.publishNow(post.id);
@@ -1026,40 +1005,35 @@ function PostDetailModal({
                             toast.error('Erro ao publicar');
                           }
                         }}
-                        className="w-full px-4 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
+                        className="w-full bg-emerald-500 hover:bg-emerald-600"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.651z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         Publicar Agora
-                      </button>
+                      </Button>
                     )}
 
-                    <button
+                    <Button
+                      variant="danger"
                       onClick={onDelete}
-                      className="w-full px-4 py-2.5 border border-red-500/30 text-red-400 rounded-lg text-sm font-medium hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"
+                      className="w-full"
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                       Excluir Post
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <>
-                    <button
-                      onClick={handleSaveEdit}
-                      className="w-full px-4 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors"
-                    >
-                      Salvar Alterações
-                    </button>
-                    <button
-                      onClick={() => setEditing(false)}
-                      className="w-full px-4 py-2.5 border border-[#1f2937] text-gray-400 rounded-lg text-sm font-medium hover:border-gray-600 hover:text-white transition-colors"
-                    >
+                    <Button onClick={handleSaveEdit} className="w-full bg-emerald-500 hover:bg-emerald-600">
+                      Salvar Alteracoes
+                    </Button>
+                    <Button variant="secondary" onClick={() => setEditing(false)} className="w-full">
                       Cancelar
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -1068,20 +1042,20 @@ function PostDetailModal({
             {/* Info */}
             <div className="mt-6 space-y-3">
               <div>
-                <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Agendado</p>
-                <p className="text-sm text-white">
-                  {post.scheduledFor ? format(new Date(post.scheduledFor), "dd/MM/yyyy 'às' HH:mm") : 'Não agendado'}
+                <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Agendado</p>
+                <p className="text-sm text-[var(--text-primary)]">
+                  {post.scheduledFor ? format(new Date(post.scheduledFor), "dd/MM/yyyy 'as' HH:mm") : 'Nao agendado'}
                 </p>
               </div>
               {post.channel && (
                 <div>
-                  <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Canal</p>
-                  <p className="text-sm text-white">{post.channel.name}</p>
+                  <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">Canal</p>
+                  <p className="text-sm text-[var(--text-primary)]">{post.channel.name}</p>
                 </div>
               )}
               <div>
-                <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">ID</p>
-                <p className="text-xs text-gray-500 font-mono">{post.id}</p>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider">ID</p>
+                <p className="text-xs text-[var(--text-muted)] font-mono">{post.id}</p>
               </div>
             </div>
           </div>

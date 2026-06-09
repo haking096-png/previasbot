@@ -21,10 +21,25 @@ export default function RootLayout({
           position="top-right"
           toastOptions={{
             style: {
-              background: '#141d35',
-              color: '#f0f4f8',
-              border: '1px solid rgba(56, 97, 150, 0.15)',
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '12px',
               fontSize: '13px',
+              padding: '12px 16px',
+              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4)',
+            },
+            success: {
+              iconTheme: {
+                primary: '#10b981',
+                secondary: 'var(--bg-secondary)',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: 'var(--bg-secondary)',
+              },
             },
           }}
         />

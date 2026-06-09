@@ -119,16 +119,4 @@ export const enqueteScheduleApi = {
   testNow: (channelId: string) => api.post('/api/enquete/test', { channelId }),
 };
 
-export const templateApi = {
-  getAll: (channelId: string, type?: string) =>
-    api.get('/api/templates', { params: { channelId, type } }),
-  create: (data: any) => api.post('/api/templates', data),
-  update: (id: string, data: any) => api.put(`/api/templates/${id}`, data),
-  delete: (id: string) => api.delete(`/api/templates/${id}`),
-  reorder: (items: { id: string; order: number }[]) =>
-    api.post('/api/templates/reorder', { items }),
-  generate: (templateId: string, context: any) =>
-    api.post('/api/templates/generate', { templateId, context }),
-};
-
 export default api;

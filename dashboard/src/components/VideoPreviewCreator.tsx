@@ -106,7 +106,7 @@ export default function VideoPreviewCreator({ channelId, onScheduled }: VideoPre
               onChange={(e) => setVideoDescription(e.target.value)}
               placeholder="Ex: Loira de biquíni vermelho rebolando na praia, mostrando o bumbum empinado para a câmera..."
               rows={4}
-              className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#3b82f6] focus:outline-none text-sm resize-y"
+              className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#a855f7] focus:outline-none text-sm resize-y"
             />
           </div>
 
@@ -119,14 +119,14 @@ export default function VideoPreviewCreator({ channelId, onScheduled }: VideoPre
               value={ctaLink}
               onChange={(e) => setCtaLink(e.target.value)}
               placeholder="https://seulink.com/vip"
-              className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#3b82f6] focus:outline-none text-sm"
+              className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#a855f7] focus:outline-none text-sm"
             />
           </div>
 
           <button
             onClick={handleGeneratePreview}
             disabled={generating || !videoDescription.trim()}
-            className="w-full px-4 py-3 bg-[#3b82f6] text-white rounded-lg text-sm font-medium hover:bg-[#2563eb] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full px-4 py-3 bg-[#a855f7] text-white rounded-lg text-sm font-medium hover:bg-[#9333ea] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {generating ? (
               <>
@@ -149,7 +149,7 @@ export default function VideoPreviewCreator({ channelId, onScheduled }: VideoPre
 
           <div className="bg-[#0e1621] rounded-xl overflow-hidden mb-4">
             <div className="bg-[#212d3b] px-4 py-3 flex items-center space-x-3 border-b border-gray-800">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-white font-bold text-lg">
                 P
               </div>
               <div className="flex-1">
@@ -192,7 +192,7 @@ export default function VideoPreviewCreator({ channelId, onScheduled }: VideoPre
                 type="datetime-local"
                 value={scheduleDate}
                 onChange={(e) => setScheduleDate(e.target.value)}
-                className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#3b82f6] focus:outline-none text-sm"
+                className="w-full bg-[#0a0e1a] border border-[#1e293b] rounded-lg px-3 py-2.5 text-[#f1f5f9] focus:border-[#a855f7] focus:outline-none text-sm"
               />
               <p className="text-[10px] text-[#64748b] mt-1">Se vazio, será enviado em 1 minuto.</p>
             </div>

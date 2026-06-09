@@ -3,13 +3,41 @@ import { Telegraf } from 'telegraf';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 
+// Validation regex patterns - Telegram bot tokens are typically30-40 chars after the colon
+const BOT_TOKEN_REGEX = /^\d+:[A-Za-z0-9_-]{30,40}$/;
+const CHAT_ID_REGEX = /^-?\d+$/;
+
 export class ChannelController {
+  validateBotToken(token: string): boolean {
+    return BOT_TOKEN_REGEX.test(token);
+  }
+
+  validateChatId(chatId: string): boolean {
+    return CHAT_ID_REGEX.test(chatId);
+  }
+
   async create(req: Request, res: Response) {
     try {
       const { name, botToken, chatId, ctaLink, mediaStorageChatId, ctaPrompt, enquetePrompt, previewPrompt } = req.body;
 
+      // Basic required field validation
       if (!name || !botToken || !chatId || !ctaLink) {
         return res.status(400).json({ error: 'name, botToken, chatId e ctaLink são obrigatórios' });
+      }
+
+      // Validate bot token format
+      if (!this.validateBotToken(botToken)) {
+        return res.status(400).json({ error: 'Formato de botToken inválido. Use o formato: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz' });
+      }
+
+      // Validate chat ID format
+      if (!this.validateChatId(chatId)) {
+        return res.status(400).json({ error: 'Formato de chatId inválido. Use apenas números, opcionalmente com - no início (ex: -1001234567890)' });
+      }
+
+      // Validate media storage chat ID if provided
+      if (mediaStorageChatId && !this.validateChatId(mediaStorageChatId)) {
+        return res.status(400).json({ error: 'Formato de mediaStorageChatId inválido' });
       }
 
       const channel = await prisma.channel.create({
@@ -73,6 +101,21 @@ export class ChannelController {
     try {
       const { id } = req.params;
       const { name, botToken, chatId, ctaLink, mediaStorageChatId, ctaPrompt, enquetePrompt, previewPrompt, enabled } = req.body;
+
+      // Validate bot token format if provided
+      if (botToken !== undefined && !this.validateBotToken(botToken)) {
+        return res.status(400).json({ error: 'Formato de botToken inválido' });
+      }
+
+      // Validate chat ID format if provided
+      if (chatId !== undefined && !this.validateChatId(chatId)) {
+        return res.status(400).json({ error: 'Formato de chatId inválido' });
+      }
+
+      // Validate media storage chat ID if provided
+      if (mediaStorageChatId !== undefined && mediaStorageChatId && !this.validateChatId(mediaStorageChatId)) {
+        return res.status(400).json({ error: 'Formato de mediaStorageChatId inválido' });
+      }
 
       const channel = await prisma.channel.update({
         where: { id },

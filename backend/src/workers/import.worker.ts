@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { connection } from '../utils/queue';
+import { connectionOptions } from '../utils/queue';
 import prisma from '../utils/prisma';
 import logger from '../utils/logger';
 
@@ -21,7 +21,7 @@ export const importWorker = new Worker(
 
     return { imported: 0 };
   },
-  { connection }
+  { connection: connectionOptions as any }
 );
 
 importWorker.on('completed', (job) => {

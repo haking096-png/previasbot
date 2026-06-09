@@ -1,8 +1,8 @@
-console.log('[WORKER] Starting workers...');
-console.log('[WORKER] REDIS_HOST:', process.env.REDIS_HOST);
-console.log('[WORKER] REDIS_PORT:', process.env.REDIS_PORT);
-
 import logger from '../utils/logger';
+logger.info('[WORKER] Starting workers...');
+logger.info('[WORKER] REDIS_HOST:', { host: process.env.REDIS_HOST });
+logger.info('[WORKER] REDIS_PORT:', { port: process.env.REDIS_PORT });
+
 import { importQueue, analyzeQueue, scheduleQueue } from '../utils/queue';
 
 import './import.worker';

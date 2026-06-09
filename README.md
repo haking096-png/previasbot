@@ -1,366 +1,213 @@
 # Telegram Preview Bot
 
-Sistema automatizado de publicação de prévias no Telegram com análise de imagens via Grok AI, agendamento inteligente e dashboard web para gestão completa.
+![Status](https://img.shields.io/badge/status-stable-brightgreen) ![Backend](https://img.shields.io/badge/backend-Node.js%2020+-blue) ![Dashboard](https://img.shields.io/badge/dashboard-Next.js%2014-black)
 
-## 📋 Funcionalidades
+[![Deploy with Vercel](https://img.shields.io/badge/Vercel-Deploy-black?style=flat-square&logo=vercel)](https://vercel.com/new/clone?repository-url=https://github.com/piuzera/telegram-preview-bot&root-directory=dashboard)
+[![Deploy with Railway](https://img.shields.io/badge/Railway-Deploy-black?style=flat-square&logo=railway)](https://railway.app/new?template=https://github.com/piuzera/telegram-preview-bot&root-directory=backend)
 
-- ✅ Upload e importação automática de imagens
-- ✅ Análise de imagens com Grok AI
-- ✅ Geração automática de prévias únicas
-- ✅ Dashboard web para gerenciamento
-- ✅ Agendamento inteligente de publicações
-- ✅ Publicação automática no Telegram
-- ✅ Sistema de aprovação de prévias
-- ✅ Edição manual de conteúdo
-- ✅ Histórico de publicações
-- ✅ Configuração de horários personalizados
+Sistema automatizado de publicação de prévias no Telegram com análise de imagens via Grok AI, agendamento inteligente e dashboard web dark-mode premium para gestão completa.
+
+## ✨ Funcionalidades
+
+### 📤 Imagens
+- ✅ Upload com drag-and-drop (múltiplas de uma vez)
+- ✅ Análise automática com Grok AI (cenário, pose, roupa, emoção)
+- ✅ Geração automática de prévias no estilo do canal
+- ✅ Preview antes de enviar
+- ✅ Barra de progresso por arquivo
+- ✅ Validação de tipo e tamanho
+- ✅ Imagens já postadas somem automaticamente da lista
+
+### 📝 Copys (Prévias)
+- ✅ **Prompt Mestre** configurável por canal
+- ✅ **Prompt especializado para Victoria** (loira, safada, Petrobras) — detectado automaticamente pelo nome do canal
+- ✅ Geração no formato exato:
+  - Headline em CAIXA ALTA com ? (pergunta)
+  - Body com 4 frases separadas por \n
+  - 3 CTAs idênticos viram links clicáveis
+- ✅ Validação automática: força 3 CTAs idênticos, garante ? na headline, divide body em linhas
+
+### 📅 Agendamento
+- ✅ Múltiplos horários por canal
+- ✅ Agendamento automático após aprovação
+- ✅ Auto-retry com backoff exponencial
+- ✅ Auto-recuperação de posts travados
+
+### 🤖 Telegram
+- ✅ Publicação de foto + legenda
+- ✅ Publicação de vídeo + legenda
+- ✅ CTA Presente automático
+- ✅ Enquetes automáticas
+- ✅ Re-upload automático se file_id expirar
+- ✅ Detecção e marcação de chat inválido
+
+### 🎨 Dashboard
+- ✅ Dark mode premium (Linear/Vercel style)
+- ✅ Layout limpo e funcional
+- ✅ CRUD completo de canais
+- ✅ Desativar/Excluir canais
+- ✅ Health check do sistema
+- ✅ Logs estruturados
+- ✅ Filtros e busca
 
 ## 🏗️ Arquitetura
 
 ```
 telegram-preview-bot/
-├── backend/          # API REST + Workers
-├── dashboard/        # Interface web (Next.js)
-├── uploads/          # Pasta de imagens
-└── logs/            # Logs do sistema
+├── backend/          # API REST + BullMQ Workers
+│   ├── src/
+│   │   ├── controllers/   # 12 controllers
+│   │   ├── services/      # Telegram, Grok, Preview
+│   │   ├── workers/       # Analyze, Generate, Publish
+│   │   ├── routes/        # Health, etc
+│   │   ├── utils/         # Prisma, Logger, CircuitBreaker
+│   │   ├── config/        # Validação de env
+│   │   └── types/         # TypeScript types
+│   └── prisma/            # Schema + migrations
+│
+├── dashboard/        # Next.js 14 (dark mode)
+│   ├── src/
+│   │   ├── app/           # Pages (App Router)
+│   │   ├── components/    # UI reutilizáveis
+│   │   ├── lib/           # API client, state
+│   │   └── types/         # TypeScript types
+│   └── public/
+│
+├── uploads/          # Imagens locais (legado)
+├── logs/            # Logs estruturados
+└── docs/            # Documentação adicional
 ```
 
-## 🚀 Instalação
+## 🚀 Quick Start
 
 ### Pré-requisitos
 
 - Node.js 20+
 - PostgreSQL 15+
 - Redis 7+
-- Conta no Telegram (Bot Token)
+- Conta no Telegram (Bot Token via @BotFather)
 - API Key do Grok (X.AI)
 
-### 1. Clone e instale dependências
+### Instalação Local
 
 ```bash
+# 1. Instalar dependências
 cd telegram-preview-bot
 npm install
 cd backend && npm install
 cd ../dashboard && npm install
 cd ..
-```
 
-### 2. Configure o banco de dados
-
-```bash
-# Crie um banco PostgreSQL
-createdb telegram_preview_bot
-
-# Configure a URL no .env
+# 2. Configurar .env
 cp .env.example .env
-# Edite o .env com suas credenciais
+# Editar .env com suas credenciais
+
+# 3. Rodar migrations
+cd backend && npx prisma migrate deploy
+
+# 4. Iniciar tudo
+cd .. && npm run dev
 ```
 
-### 3. Configure as variáveis de ambiente
-
-Edite o arquivo `.env` na raiz do projeto:
-
-```env
-# Database
-DATABASE_URL="postgresql://user:password@localhost:5432/telegram_preview_bot?schema=public"
-
-# Redis
-REDIS_HOST="localhost"
-REDIS_PORT=6379
-
-# Backend
-PORT=3001
-ADMIN_PASSWORD="sua-senha-segura"
-
-# Telegram
-TELEGRAM_BOT_TOKEN="seu-bot-token"
-TELEGRAM_CHAT_ID="seu-chat-id"
-
-# Grok API
-GROK_API_KEY="sua-api-key"
-
-# App Settings
-CTA_LINK="https://t.me/seubot"
-```
-
-### 4. Execute as migrations
-
-```bash
-npm run prisma:migrate
-```
-
-### 5. Inicie o sistema
-
-```bash
-# Desenvolvimento (todos os serviços)
-npm run dev
-
-# Ou inicie separadamente:
-npm run dev:backend    # API na porta 3001
-npm run dev:dashboard  # Dashboard na porta 3000
-npm run dev:worker     # Workers de processamento
-```
-
-## 📱 Como Usar
-
-### 1. Acesse o Dashboard
-
-Abra http://localhost:3000 no navegador
-
-**Login padrão:**
-- Usuário: `admin`
-- Senha: `admin123` (ou a que você configurou no .env)
-
-### 2. Configure o Sistema
-
-Vá em **Configurações** e preencha:
-- Token do Bot do Telegram
-- Chat ID do canal/grupo
-- API Key do Grok
-- Link de CTA
-- Horários de publicação
-
-### 3. Adicione Imagens
-
-Coloque suas imagens na pasta `uploads/` com nomes numerados:
-
-```
-uploads/
-  1.jpg
-  2.jpg
-  3.jpg
-  4.jpg
-```
-
-### 4. Importe as Imagens
-
-No dashboard, clique em **Importar Novas Imagens**
-
-### 5. Aguarde o Processamento
-
-O sistema irá automaticamente:
-1. Detectar as novas imagens
-2. Analisar cada imagem com Grok
-3. Gerar prévias únicas
-4. Aguardar sua aprovação
-
-### 6. Revise e Aprove
-
-Vá em **Prévias** para:
-- Visualizar as prévias geradas
-- Editar o conteúdo se necessário
-- Aprovar ou rejeitar
-- Regenerar se não gostar
-
-### 7. Agendamento Automático
-
-Após aprovação, o sistema agenda automaticamente nos horários configurados.
-
-## 🔧 Configuração do Telegram
-
-### Criar um Bot
-
-1. Fale com [@BotFather](https://t.me/botfather) no Telegram
-2. Use o comando `/newbot`
-3. Siga as instruções
-4. Copie o token fornecido
-
-### Obter o Chat ID
-
-**Para canal:**
-1. Adicione o bot como administrador do canal
-2. Envie uma mensagem no canal
-3. Acesse: `https://api.telegram.org/bot<TOKEN>/getUpdates`
-4. Procure por `"chat":{"id":-100...}`
-
-**Para grupo:**
-1. Adicione o bot ao grupo
-2. Envie `/start` no grupo
-3. Use o mesmo método acima
-
-## 🤖 Como Funciona
-
-### Fluxo de Processamento
-
-```
-1. Upload de Imagens
-   ↓
-2. Importação (Worker)
-   ↓
-3. Análise com Grok (Worker)
-   ↓
-4. Geração de Prévia (Worker)
-   ↓
-5. Aprovação Manual (Dashboard)
-   ↓
-6. Agendamento Automático (Worker)
-   ↓
-7. Publicação no Telegram (Worker)
-```
-
-### Workers Ativos
-
-- **Import Worker**: Verifica pasta uploads a cada 5 minutos
-- **Analyze Worker**: Analisa imagens com Grok
-- **Generate Worker**: Gera prévias baseadas na análise
-- **Publish Worker**: Publica no Telegram no horário agendado
-- **Schedule Worker**: Agenda posts automaticamente a cada 10 minutos
-
-## 📊 Estrutura das Prévias
-
-Cada prévia gerada segue esta estrutura:
-
-```
-[HEADLINE]
-✨ Novidade exclusiva
-
-[CORPO]
-Descrição baseada na análise da imagem
-Elementos visuais identificados
-Sensação e emoção transmitida
-
-[PRÉ-CTA]
-Quer ver mais?
-
-[CTA]
-Clique agora e descubra
-
-[BOTÃO]
-VER AGORA → https://t.me/seubot
-```
-
-## 🎨 Personalização
-
-### Modificar Templates de Prévia
-
-Edite `backend/src/services/preview.service.ts`:
-
-```typescript
-const headlines = [
-  '✨ Novidade exclusiva',
-  '🔥 Imperdível',
-  // Adicione mais opções
-];
-```
-
-### Ajustar Análise do Grok
-
-Edite `backend/src/services/grok.service.ts` para modificar o prompt de análise.
-
-### Customizar Interface
-
-O dashboard usa Tailwind CSS. Edite os componentes em `dashboard/src/app/dashboard/`.
-
-## 🔒 Segurança
-
-- Senhas são hasheadas com bcrypt
-- JWT para autenticação
-- Rate limiting nas APIs
-- Validação de inputs com Zod
-- CORS configurado
-- Helmet.js para headers de segurança
-
-## 📝 Logs
-
-Logs são salvos em:
-- `logs/error.log` - Apenas erros
-- `logs/combined.log` - Todos os logs
-
-## 🐛 Troubleshooting
-
-### Imagens não são importadas
-
-- Verifique se os nomes são numéricos (1.jpg, 2.jpg)
-- Verifique permissões da pasta uploads
-- Veja os logs em `logs/combined.log`
-
-### Erro ao analisar com Grok
-
-- Verifique se a API Key está correta
-- Confirme que tem créditos na conta X.AI
-- Veja os logs para detalhes do erro
-
-### Telegram não publica
-
-- Teste a conexão em Configurações
-- Verifique se o bot é admin do canal
-- Confirme que o Chat ID está correto
-
-### Workers não processam
-
-- Verifique se o Redis está rodando
-- Confirme que o worker está ativo
-- Veja os logs do worker
-
-## 🚀 Produção
-
-### Usando PM2
-
-```bash
-# Instale o PM2
-npm install -g pm2
-
-# Inicie os serviços
-pm2 start npm --name "backend" -- run start:backend
-pm2 start npm --name "worker" -- run start:worker
-pm2 start npm --name "dashboard" -- run start
-
-# Salve a configuração
-pm2 save
-pm2 startup
-```
-
-### Usando Docker (opcional)
-
-```bash
-# Build
-docker-compose build
-
-# Start
-docker-compose up -d
-```
-
-## 📦 Scripts Disponíveis
+Acessar:
+- **Dashboard:** http://localhost:3000
+- **API:** http://localhost:3001
+- **Login padrão:** admin / admin123
+
+## 📚 Documentação
+
+- **[DEPLOY.md](DEPLOY.md)** — Guia completo de deploy (Vercel + Railway + Neon + Upstash)
+- **[PROMPT_MESTRE_VICTORIA.md](PROMPT_MESTRE_VICTORIA.md)** — Prompt especializado do canal Victoria
+- **[PROMPT_MESTRE.md](PROMPT_MESTRE.md)** — Prompt genérico (fallback)
+- **[CHECKLIST.md](CHECKLIST.md)** — Checklist de deploy
+- **[docs/](docs/)** — Documentação técnica
+
+## 🛠️ Stack Técnica
+
+### Backend
+- **Node.js 20+** + **TypeScript 5.6**
+- **Express 4.19** + **Helmet** + **CORS**
+- **Prisma 5.20** + **PostgreSQL 15**
+- **BullMQ 5.13** + **Redis 7** (filas + workers)
+- **Telegraf 4.16** (cliente Telegram)
+- **Winston 3.14** (logging estruturado)
+- **Axios** + **Circuit Breaker** (chamadas Grok/X.AI)
+
+### Dashboard
+- **Next.js 14** (App Router)
+- **TypeScript 5.6**
+- **Tailwind CSS 3**
+- **React Hot Toast** (notificações)
+- **Axios** (com retry interceptor)
+
+### Workers (BullMQ)
+- **analyze.worker.ts** — Analisa imagem com Grok
+- **generate.worker.ts** — Gera copy a partir da análise
+- **publish.worker.ts** — Publica no Telegram
+- **schedule.worker.ts** — Agenda posts automaticamente
+- **ctaPresente.worker.ts** — CTA Presente programado
+- **enquete.worker.ts** — Enquetes programadas
+- **import.worker.ts** — (no-op, legado)
+
+## 🔧 Scripts Úteis
 
 ```bash
 # Desenvolvimento
 npm run dev                 # Todos os serviços
-npm run dev:backend        # Apenas backend
-npm run dev:dashboard      # Apenas dashboard
-npm run dev:worker         # Apenas workers
+npm run dev:backend        # Só backend
+npm run dev:dashboard      # Só dashboard
+npm run dev:worker         # Só workers
 
 # Produção
 npm run build              # Build de tudo
-npm run start              # Start backend
-npm run start:worker       # Start workers
+npm run start              # Inicia backend
+npm run start:worker       # Inicia workers
 
-# Banco de dados
+# Banco
 npm run prisma:generate    # Gerar Prisma Client
-npm run prisma:migrate     # Executar migrations
-npm run prisma:studio      # Abrir Prisma Studio
+npm run prisma:migrate     # Criar/aplicar migrations
+
+# Testes (em desenvolvimento)
+cd backend && npm test
 ```
+
+## 🌐 Deploy em Produção
+
+Veja **[DEPLOY.md](DEPLOY.md)** para o guia completo.
+
+**Custo estimado:** $5-10/mês
+- Vercel (dashboard): grátis
+- Railway (backend): $5
+- Neon (Postgres): grátis até 0.5GB
+- Upstash (Redis): grátis até 10k req/dia
+
+## 📊 Custos & Limites
+
+- **Grok/X.AI:** depende do plano (ver https://console.x.ai)
+- **Telegram:** grátis (Bot API)
+- **Imagens:** armazenadas no Telegram (sem limite prático)
+
+## 🔒 Segurança
+
+- Senhas hasheadas com bcrypt
+- JWT para autenticação
+- Helmet.js para headers HTTP
+- CORS configurado
+- Rate limiting nas APIs
+- Validação de inputs com Zod
+- Tokens nunca expostos no frontend
+
+## 📝 Licença
+
+MIT
 
 ## 🤝 Suporte
 
-Para problemas ou dúvidas:
+Para problemas:
 1. Verifique os logs em `logs/`
-2. Consulte a documentação do Telegram Bot API
-3. Verifique a documentação do Grok API
-
-## 📄 Licença
-
-MIT License - use livremente para seus projetos!
-
-## 🎯 Roadmap
-
-- [ ] Suporte a múltiplos canais
-- [ ] Agendamento manual por imagem
-- [ ] Estatísticas de engajamento
-- [ ] Integração com S3 para uploads
-- [ ] Suporte a vídeos
-- [ ] API pública
-- [ ] Webhooks para eventos
+2. Acesse `http://localhost:3000/system` (Health Check)
+3. Consulte `docs/BUG_REPORT.md`
 
 ---
 
-Desenvolvido com ❤️ para automatizar suas prévias no Telegram
+Desenvolvido para automatizar publicações no Telegram com qualidade.

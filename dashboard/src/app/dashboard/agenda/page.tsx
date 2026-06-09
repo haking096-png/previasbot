@@ -7,6 +7,10 @@ import { useChannelStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Badge, { StatusBadge } from '@/components/ui/Badge';
+import EmptyState from '@/components/ui/EmptyState';
 
 interface PostWithChannel extends Post {
   channel?: Channel;
@@ -76,7 +80,7 @@ export default function AgendaPage() {
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-2 border-cyan-500 border-t-transparent" />
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-violet-500 border-t-transparent" />
       </div>
     );
   }
@@ -84,11 +88,11 @@ export default function AgendaPage() {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-[#1e293b] bg-[#0a0e1a]">
+      <div className="flex-shrink-0 px-6 py-4 border-b border-[var(--border-default)] bg-[var(--bg-primary)]">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-white">Agenda</h1>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">Agenda</h1>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
               {stats.scheduled} agendados • {stats.published} publicados
             </p>
           </div>
@@ -96,38 +100,38 @@ export default function AgendaPage() {
           <div className="flex items-center gap-4">
             {/* Navigation */}
             <div className="flex items-center gap-2">
-              <button onClick={handlePrevMonth} className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors">
+              <Button variant="ghost" size="sm" onClick={handlePrevMonth}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-              </button>
-              <button onClick={handleToday} className="px-3 py-1.5 text-sm font-medium text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors">
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleToday}>
                 Hoje
-              </button>
-              <span className="text-white font-medium min-w-[180px] text-center">
+              </Button>
+              <span className="text-[var(--text-primary)] font-medium min-w-[180px] text-center capitalize">
                 {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
               </span>
-              <button onClick={handleNextMonth} className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors">
+              <Button variant="ghost" size="sm" onClick={handleNextMonth}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
-              </button>
+              </Button>
             </div>
 
             {/* View Toggle */}
-            <div className="flex items-center bg-[#111827] rounded-lg p-1">
+            <div className="flex items-center bg-[var(--bg-secondary)] rounded-lg p-1">
               <button
                 onClick={() => setViewMode('month')}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  viewMode === 'month' ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400 hover:text-white'
+                  viewMode === 'month' ? 'bg-violet-500/20 text-violet-400' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
-                Mês
+                Mes
               </button>
               <button
                 onClick={() => setViewMode('week')}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  viewMode === 'week' ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400 hover:text-white'
+                  viewMode === 'week' ? 'bg-violet-500/20 text-violet-400' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 Semana
@@ -142,8 +146,8 @@ export default function AgendaPage() {
         <div className="min-w-[800px]">
           {/* Week Headers */}
           <div className="grid grid-cols-7 mb-2">
-            {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(day => (
-              <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
+            {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'].map(day => (
+              <div key={day} className="text-center text-xs font-medium text-[var(--text-muted)] py-2">
                 {day}
               </div>
             ))}
@@ -162,13 +166,14 @@ export default function AgendaPage() {
                     <div
                       key={dayIndex}
                       className={`
-                        min-h-[120px] rounded-lg p-2 border transition-colors
-                        ${isCurrentMonth ? 'bg-[#111827] border-[#1e293b]' : 'bg-[#0a0e1a] border-[#1e293b]/50'}
-                        ${isToday ? 'border-cyan-500/50' : ''}
+                        min-h-[120px] rounded-xl p-2 border transition-all duration-150
+                        ${isCurrentMonth ? 'bg-[var(--bg-secondary)] border-[var(--border-default)]' : 'bg-[var(--bg-primary)] border-[var(--border-default)]/50'}
+                        ${isToday ? 'border-violet-500/50 ring-1 ring-violet-500/20' : ''}
+                        hover:border-[var(--border-hover)]
                       `}
                     >
                       {/* Day Number */}
-                      <div className={`text-xs font-medium mb-2 ${isToday ? 'text-cyan-400' : isCurrentMonth ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <div className={`text-xs font-medium mb-2 ${isToday ? 'text-violet-400' : isCurrentMonth ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`}>
                         {format(day, 'd')}
                       </div>
 
@@ -179,18 +184,18 @@ export default function AgendaPage() {
                             key={post.id}
                             onClick={() => setSelectedPost(post)}
                             className={`
-                              px-2 py-1 rounded text-xs cursor-pointer truncate
-                              ${post.status === 'PUBLISHED' ? 'bg-emerald-500/20 text-emerald-400' :
-                                post.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-400' :
-                                post.status === 'PUBLISHING' ? 'bg-amber-500/20 text-amber-400' :
-                                'bg-gray-500/20 text-gray-400'}
+                              px-2 py-1 rounded-lg text-xs cursor-pointer truncate transition-colors
+                              ${post.status === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' :
+                                post.status === 'SCHEDULED' ? 'bg-violet-500/10 text-violet-400 hover:bg-violet-500/20' :
+                                post.status === 'PUBLISHING' ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' :
+                                'bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:bg-[var(--border-hover)]'}
                             `}
                           >
                             {format(new Date(post.scheduledFor!), 'HH:mm')} {post.preview?.headline?.substring(0, 10) || ''}
                           </div>
                         ))}
                         {dayPosts.length > 3 && (
-                          <div className="text-[10px] text-gray-500 px-2">
+                          <div className="text-[10px] text-[var(--text-muted)] px-2">
                             +{dayPosts.length - 3} mais
                           </div>
                         )}
@@ -207,60 +212,54 @@ export default function AgendaPage() {
       {/* Post Detail Modal */}
       {selectedPost && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={() => setSelectedPost(null)}>
-          <div className="bg-[#111827] border border-[#1e293b] rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-[#1e293b] flex items-center justify-between">
+          <Card padding="lg" className="max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-white">Detalhes do Post</h2>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  selectedPost.status === 'PUBLISHED' ? 'bg-emerald-500/20 text-emerald-400' :
-                  selectedPost.status === 'SCHEDULED' ? 'bg-blue-500/20 text-blue-400' :
-                  'bg-gray-500/20 text-gray-400'
-                }`}>
-                  {selectedPost.status}
-                </span>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Detalhes do Post</h2>
+                <StatusBadge status={selectedPost.status} />
               </div>
-              <button onClick={() => setSelectedPost(null)} className="p-2 hover:bg-white/5 rounded-lg">
-                <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedPost(null)}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-              </button>
+              </Button>
             </div>
 
-            <div className="p-5 space-y-4">
-              {/* Image */}
-              {selectedPost.mediaItem?.filePath && (
-                <div className="rounded-lg overflow-hidden bg-[#0a0e1a]">
-                  <img
-                    src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/media/${selectedPost.mediaItem.id}/image`}
-                    alt=""
-                    className="w-full h-48 object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </div>
-              )}
+            {/* Image */}
+            {selectedPost.mediaItem?.filePath && (
+              <div className="rounded-xl overflow-hidden bg-[var(--bg-tertiary)] mb-4">
+                <img
+                  src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/media/${selectedPost.mediaItem.id}/image`}
+                  alt=""
+                  className="w-full h-48 object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              </div>
+            )}
 
-              {/* Content */}
+            {/* Content */}
+            <div className="space-y-3">
               <div>
-                <p className="text-xs text-gray-500 mb-1">Headline</p>
-                <p className="text-white font-medium">{selectedPost.preview?.headline || 'Sem headline'}</p>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">Headline</p>
+                <p className="text-[var(--text-primary)] font-medium">{selectedPost.preview?.headline || 'Sem headline'}</p>
               </div>
 
               <div>
-                <p className="text-xs text-gray-500 mb-1">Body</p>
-                <p className="text-sm text-gray-300 whitespace-pre-line">{selectedPost.preview?.body || ''}</p>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">Body</p>
+                <p className="text-sm text-[var(--text-secondary)] whitespace-pre-line">{selectedPost.preview?.body || ''}</p>
               </div>
 
               {/* Schedule Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Agendado</p>
-                  <p className="text-sm text-white">
+                  <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">Agendado</p>
+                  <p className="text-sm text-[var(--text-primary)]">
                     {selectedPost.scheduledFor ? format(new Date(selectedPost.scheduledFor), "dd/MM/yyyy HH:mm") : '-'}
                   </p>
                 </div>
                 {selectedPost.publishedAt && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Publicado</p>
+                    <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">Publicado</p>
                     <p className="text-sm text-emerald-400">
                       {format(new Date(selectedPost.publishedAt), "dd/MM/yyyy HH:mm")}
                     </p>
@@ -271,15 +270,15 @@ export default function AgendaPage() {
               {/* Channel */}
               {selectedPost.channel && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Canal</p>
-                  <p className="text-sm text-white">{selectedPost.channel.name}</p>
+                  <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">Canal</p>
+                  <p className="text-sm text-[var(--text-primary)]">{selectedPost.channel.name}</p>
                 </div>
               )}
 
               {/* Actions */}
               {selectedPost.status === 'SCHEDULED' && (
-                <div className="flex gap-3 pt-4 border-t border-[#1e293b]">
-                  <button
+                <div className="flex gap-3 pt-4 border-t border-[var(--border-default)]">
+                  <Button
                     onClick={async () => {
                       try {
                         await postApi.publishNow(selectedPost.id);
@@ -290,11 +289,12 @@ export default function AgendaPage() {
                         toast.error('Erro ao publicar');
                       }
                     }}
-                    className="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors"
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-600"
                   >
                     Publicar Agora
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="danger"
                     onClick={async () => {
                       if (!confirm('Cancelar post?')) return;
                       try {
@@ -306,14 +306,13 @@ export default function AgendaPage() {
                         toast.error('Erro ao cancelar');
                       }
                     }}
-                    className="px-4 py-2.5 border border-red-500/30 text-red-400 rounded-lg text-sm font-medium hover:bg-red-500/10 transition-colors"
                   >
                     Cancelar
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>

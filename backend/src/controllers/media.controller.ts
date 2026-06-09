@@ -152,6 +152,9 @@ export class MediaController {
       const where: any = {};
       if (channelId) {
         where.channelId = channelId as string;
+      } else {
+        // Se nao especificou canal, nao retorna nada (evita misturar canais)
+        return res.json([]);
       }
 
       const media = await prisma.mediaItem.findMany({
@@ -159,6 +162,7 @@ export class MediaController {
         include: {
           analysis: true,
           preview: true,
+          posts: { select: { id: true, status: true, publishedAt: true } },
         },
         orderBy: { order: 'asc' },
       });

@@ -124,7 +124,10 @@ export const publishWorker = new Worker(
   'publish',
   async (job: Job) => {
     const { postId } = job.data;
-    logger.info('Publish worker started', { jobId: job.id, postId });
+
+    // DIAGNOSTIC LOG: Show job started
+    logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    logger.info('📤 PUBLISH WORKER STARTED', { jobId: job.id, postId });
 
     try {
       const post = await prisma.post.findUnique({
@@ -139,6 +142,20 @@ export const publishWorker = new Worker(
       if (!post) {
         throw new Error(`Post not found: ${postId}`);
       }
+
+      // DIAGNOSTIC LOG: Show post details
+      logger.info('Post details:', {
+        postId: post.id,
+        status: post.status,
+        channelId: post.channelId,
+        channelName: post.channel?.name || 'NO CHANNEL',
+        chatId: post.channel?.chatId || 'NO CHAT ID',
+        hasBotToken: !!post.channel?.botToken,
+        mediaType: post.mediaItem?.mediaType,
+        hasTelegramFileId: !!post.mediaItem?.telegramFileId,
+        hasPreview: !!post.preview,
+        headline: post.preview?.headline?.substring(0, 50),
+      });
 
       // If post was already PUBLISHED, skip
       if ((post.status as string) === 'PUBLISHED') {
@@ -165,11 +182,6 @@ export const publishWorker = new Worker(
       if (post.status === 'CANCELLED') {
         logger.info('Post was cancelled, skipping', { postId });
         return { postId, status: 'cancelled' };
-      }
-
-      if ((post.status as string) === 'PUBLISHED') {
-        logger.info('Post already published, skipping', { postId });
-        return { postId, status: 'already_published' };
       }
 
       // Use serializable transaction to prevent race conditions
@@ -220,16 +232,35 @@ export const publishWorker = new Worker(
           resolvedChannel = mediaWithChannel.channel;
         }
 
+        logger.info('Resolved channel for publishing:', {
+          channelId: resolvedChannel.id,
+          channelName: resolvedChannel.name,
+          chatId: resolvedChannel.chatId,
+          hasBotToken: !!resolvedChannel.botToken,
+          hasMediaStorageChatId: !!resolvedChannel.mediaStorageChatId,
+        });
+
         let imageSource: string;
         let isFileId = false;
         let tempDownloadPath: string | null = null;
 
-        // Handle text-only content (empty filePath, TEXT mediaType, or inline sources)
+        // Handle text-only content (TEXT mediaType, or inline sources)
+        // NOTE: Do NOT mark as text-only if filePath is empty - the image might be stored in Telegram (telegramFileId)
+        const hasTelegramFileId = !!(fullPost.mediaItem.telegramFileId && fullPost.mediaItem.telegramFileId.length > 20);
+        const hasLocalFile = fullPost.mediaItem.filePath && fullPost.mediaItem.filePath !== '' && !fullPost.mediaItem.filePath.startsWith('inline://');
+
         const isTextOnlyMedia =
-          fullPost.mediaItem.mediaType === 'TEXT' ||
-          !fullPost.mediaItem.filePath ||
-          fullPost.mediaItem.filePath === '' ||
-          fullPost.mediaItem.filePath.startsWith('inline://');
+          (fullPost.mediaItem.mediaType === 'TEXT' && !hasTelegramFileId) ||
+          (!hasTelegramFileId && !hasLocalFile);
+
+        logger.info('Media type detection', {
+          postId,
+          mediaType: fullPost.mediaItem.mediaType,
+          filePath: fullPost.mediaItem.filePath,
+          hasTelegramFileId,
+          hasLocalFile,
+          isTextOnlyMedia,
+        });
 
         if (isTextOnlyMedia) {
           // Text-only content - use empty string as source, telegram service will handle it
@@ -268,6 +299,14 @@ export const publishWorker = new Worker(
         // Publicar com tratamento robusto de erros
         let publishResult;
         try {
+          logger.info('Calling telegramService.publishPreview...', {
+            postId,
+            imageSource: imageSource ? (isFileId ? 'fileId (Telegram)' : imageSource.split('/').pop()) : 'text-only',
+            isFileId,
+            mediaType: fullPost.mediaItem.mediaType,
+            chatId: resolvedChannel.chatId,
+          });
+
           publishResult = await telegramService.publishPreview(
             imageSource,
             fullPost.preview,
@@ -281,16 +320,51 @@ export const publishWorker = new Worker(
           cleanupTempFile();
 
         } catch (publishError: any) {
+          const errorMsg = publishError.message || '';
+          const isChatNotFound = errorMsg.includes('chat not found');
+          const isFileIdError = errorMsg.includes('wrong remote file identifier') || errorMsg.includes('invalid file_id');
+
           logger.error('Erro na publicação do preview', {
             postId,
-            error: publishError.message,
+            error: errorMsg,
+            isChatNotFound,
+            isFileIdError,
             isFileId,
-            hasImage: !!imageSource
+            hasImage: !!imageSource,
+            channelId: resolvedChannel.id,
+            chatId: resolvedChannel.chatId,
           });
 
+          // Se o erro for "chat not found", marcar como FAILED permanentemente (não retry)
+          if (isChatNotFound) {
+            cleanupTempFile();
+            logger.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            logger.error('❌ CHAT NÃO ENCONTRADO - O bot não consegue acessar o canal!');
+            logger.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            logger.error('SOLUÇÃO:', {
+              chatId: resolvedChannel.chatId,
+              botTokenPrefix: resolvedChannel.botToken.substring(0, 10),
+              suggestions: [
+                '1. Verifique se o bot é admin do canal',
+                '2. Verifique se o chatId está correto',
+                '3. Tente obter o chatId novamente em @userinfobot ou @getidsbot',
+              ],
+            });
+
+            // Marcar como FAILED permanentemente
+            await tx.post.update({
+              where: { id: postId },
+              data: {
+                status: 'FAILED',
+                error: `CHAT_NOT_FOUND: O bot não consegue acessar o canal ${resolvedChannel.chatId}. Verifique se o bot é administrador do canal.`,
+              },
+            });
+
+            return { messageId: null, status: 'chat_not_found', channelId: currentPost.channelId };
+          }
+
           // Se o erro for "wrong remote file identifier" ou "invalid file_id", tentar re-upload do storage
-          if ((publishError.message?.includes('wrong remote file identifier') ||
-               publishError.message?.includes('invalid file_id')) &&
+          if (isFileIdError &&
               fullPost.mediaItem.telegramFileId &&
               fullPost.mediaItem.telegramMessageId &&
               resolvedChannel.mediaStorageChatId) {
@@ -319,7 +393,7 @@ export const publishWorker = new Worker(
                 fs.unlinkSync(tempPath);
               }
 
-              logger.info('Re-upload成功了', { postId, messageId: publishResult.messageId });
+              logger.info('Re-upload bem-sucedido!', { postId, messageId: publishResult.messageId });
 
               await tx.post.update({
                 where: { id: postId },
@@ -368,9 +442,9 @@ export const publishWorker = new Worker(
         return { postId, status: 'stuck_resolved' };
       }
 
-      if (result.status === 'file_id_invalid') {
-        logger.info('Post marked as FAILED due to invalid file ID', { postId });
-        return { postId, status: 'file_id_invalid' };
+      if (result.status === 'chat_not_found') {
+        logger.info('Post marked as FAILED due to chat not found', { postId });
+        return { postId, status: 'chat_not_found' };
       }
 
       // Log job completion
@@ -389,16 +463,19 @@ export const publishWorker = new Worker(
         await rescheduleRemainingPosts(channelId);
       }
 
-      logger.info('Publish worker completed successfully', { postId, messageId: result.messageId });
+      logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      logger.info('✅ PUBLISH WORKER COMPLETED SUCCESSFULLY', { postId, messageId: result.messageId });
+      logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return { postId, messageId: result.messageId };
     } catch (error: any) {
       // CAPTURAR QUALQUER ERRO e garantir que o post seja marcado como FAILED
       const errorMessage = error?.message || 'Unknown error';
-      logger.error('Publish worker error - capturing and marking post as FAILED', {
+      logger.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      logger.error('❌ PUBLISH WORKER ERROR', {
         error: errorMessage,
-        stack: error?.stack,
         postId,
       });
+      logger.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       try {
         const existingPost = await prisma.post.findUnique({ where: { id: postId } });
